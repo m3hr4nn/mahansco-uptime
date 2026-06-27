@@ -3,7 +3,12 @@ name: Uptime Monitor
 on:
   schedule:
     - cron: "*/15 * * * *"   # every 15 minutes (4x/hour)
-  workflow_dispatch: {}       # manual "Run workflow" button
+  workflow_dispatch:          # manual "Run workflow" button
+    inputs:
+      test_ping:
+        description: "Send a Telegram test message to verify delivery (token/chat id/bot admin)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write             # needed to commit state.json back
@@ -26,6 +31,7 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID:   ${{ secrets.TELEGRAM_CHAT_ID }}
+          TEST_PING:          ${{ inputs.test_ping }}
         run: python monitor.py
 
       - name: Persist state

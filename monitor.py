@@ -40,6 +40,8 @@ def load_json(path, default):
 
 
 def telegram(text):
+    """Send a message. Returns True on success. Never raises (a send failure
+    must not crash a monitoring run), but prints enough to debug from CI logs."""
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     data = urllib.parse.urlencode({
         "chat_id": CHAT_ID,
@@ -49,8 +51,14 @@ def telegram(text):
     }).encode()
     try:
         urllib.request.urlopen(urllib.request.Request(url, data=data), timeout=15).read()
-    except Exception as e:  # noqa: BLE001 - never let a send failure crash a run
+        return True
+    except urllib.error.HTTPError as e:
+        # Telegram returns a JSON body explaining the rejection (bad chat id,
+        # bot not an admin, wrong token, etc.) -- surface it.
+        print(f"Telegram send failed: HTTP {e.code} {e.read().decode('utf-8', 'ignore')}")
+    except Exception as e:  # noqa: BLE001
         print("Telegram send failed:", e)
+    return False
 
 
 def cert_days_left(host):
@@ -106,6 +114,13 @@ def check(t):
 
 
 def main():
+    # On-demand delivery test (workflow_dispatch input). Confirms the bot token,
+    # chat id, and bot-admin status end-to-end without needing a real outage.
+    if os.environ.get("TEST_PING", "").lower() == "true":
+        now = utcnow().strftime("%Y-%m-%d %H:%M UTC")
+        ok = telegram(f"✅ <b>Test ping</b> — mahansco-uptime is wired up correctly.\n<i>{now}</i>")
+        print("Test ping delivered." if ok else "Test ping FAILED — see error above.")
+
     state = load_json(STATE_PATH, {})
     history = load_json(HISTORY_PATH, [])
     now = utcnow().strftime("%Y-%m-%d %H:%M UTC")
