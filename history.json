@@ -33,5 +33,40 @@
         "latency_ms": 1507
       }
     }
+  },
+  {
+    "ts": "2026-06-27 19:22 UTC",
+    "results": {
+      "Landing (mahansco.ir)": {
+        "ok": true,
+        "detail": "OK 974ms",
+        "latency_ms": 974
+      },
+      "App SPA (app.mahansco.ir)": {
+        "ok": true,
+        "detail": "OK 1148ms",
+        "latency_ms": 1148
+      },
+      "App health API": {
+        "ok": true,
+        "detail": "OK 744ms",
+        "latency_ms": 744
+      },
+      "GraphQL endpoint": {
+        "ok": true,
+        "detail": "OK 826ms",
+        "latency_ms": 826
+      },
+      "Marketing API": {
+        "ok": true,
+        "detail": "OK 926ms",
+        "latency_ms": 926
+      },
+      "robots.txt canary": {
+        "ok": true,
+        "detail": "OK 548ms",
+        "latency_ms": 548
+      }
+    }
   }
 ]
