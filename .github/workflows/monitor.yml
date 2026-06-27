@@ -2,11 +2,16 @@ name: Uptime Monitor
 
 on:
   schedule:
-    - cron: "*/15 * * * *"   # every 15 minutes (4x/hour)
+    - cron: "*/5 * * * *"    # every 5 minutes -- GitHub's practical floor (cron is
+                             # throttled below ~5 min and may still be delayed under load)
   workflow_dispatch:          # manual "Run workflow" button
     inputs:
       test_ping:
         description: "Send a Telegram test message to verify delivery (token/chat id/bot admin)"
+        type: boolean
+        default: false
+      send_digest:
+        description: "Send the current-state digest to Telegram now (heartbeat on demand)"
         type: boolean
         default: false
 
@@ -32,7 +37,11 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID:   ${{ secrets.TELEGRAM_CHAT_ID }}
           TEST_PING:          ${{ inputs.test_ping }}
+          FORCE_DIGEST:       ${{ inputs.send_digest }}
         run: python monitor.py
+
+      - name: Publish status data for GitHub Pages
+        run: cp history.json docs/history.json   # Pages serves /docs as the site root
 
       - name: Persist state
         run: |

@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="refresh" content="300" /> <!-- reload to match the 5-min check cadence -->
   <meta name="theme-color" content="#0E4D92" />
   <title>Mahansco Uptime</title>
   <style>
@@ -48,7 +49,7 @@
   <script>
     const WINDOW = 40; // recent samples to chart per target
 
-    fetch("../history.json?_=" + Date.now())
+    fetch("history.json?_=" + Date.now())
       .then(r => r.json())
       .then(render)
       .catch(() => {

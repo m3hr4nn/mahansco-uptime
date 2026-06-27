@@ -1,0 +1,37 @@
+[
+  {
+    "ts": "2026-06-27 19:16 UTC",
+    "results": {
+      "Landing (mahansco.ir)": {
+        "ok": true,
+        "detail": "OK 999ms",
+        "latency_ms": 999
+      },
+      "App SPA (app.mahansco.ir)": {
+        "ok": true,
+        "detail": "OK 1222ms",
+        "latency_ms": 1222
+      },
+      "App health API": {
+        "ok": true,
+        "detail": "OK 1112ms",
+        "latency_ms": 1112
+      },
+      "GraphQL endpoint": {
+        "ok": true,
+        "detail": "OK 1147ms",
+        "latency_ms": 1147
+      },
+      "Marketing API": {
+        "ok": true,
+        "detail": "OK 1223ms",
+        "latency_ms": 1223
+      },
+      "robots.txt canary": {
+        "ok": true,
+        "detail": "OK 1507ms",
+        "latency_ms": 1507
+      }
+    }
+  }
+]

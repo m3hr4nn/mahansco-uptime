@@ -173,9 +173,11 @@ def main():
     json.dump(state, open(STATE_PATH, "w", encoding="utf-8"), indent=2, ensure_ascii=False)
     json.dump(history, open(HISTORY_PATH, "w", encoding="utf-8"), indent=2, ensure_ascii=False)
 
-    # Daily digest -- the only "heartbeat" so the channel isn't silent for days.
+    # Daily digest -- the only scheduled "heartbeat" so the channel isn't silent for
+    # days. Also sendable on demand via the FORCE_DIGEST workflow input.
     nowdt = utcnow()
-    if nowdt.hour == SETTINGS["daily_digest_hour_utc"] and nowdt.minute < 15:
+    force_digest = os.environ.get("FORCE_DIGEST", "").lower() == "true"
+    if force_digest or (nowdt.hour == SETTINGS["daily_digest_hour_utc"] and nowdt.minute < 5):
         up = sum(1 for r in sample["results"].values() if r["ok"])
         total = len(sample["results"])
         lines = [f"\U0001F4CA <b>Daily digest</b> — {now}", f"{up}/{total} endpoints healthy", ""]
