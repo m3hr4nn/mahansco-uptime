@@ -1,0 +1,17 @@
+{
+  "settings": {
+    "timeout_seconds": 20,
+    "latency_warn_ms": 3000,
+    "failures_before_down": 2,
+    "cert_warn_days": [21, 7, 1],
+    "daily_digest_hour_utc": 5
+  },
+  "targets": [
+    { "name": "Landing (mahansco.ir)",     "url": "https://mahansco.ir/",                "expect_status": 200, "must_contain": "System Online",   "check_cert": true,  "expected_ip": "185.208.173.17" },
+    { "name": "App SPA (app.mahansco.ir)",  "url": "https://app.mahansco.ir/",            "expect_status": 200, "must_contain": "<div id=\"root\">", "check_cert": true },
+    { "name": "App health API",             "url": "https://app.mahansco.ir/api/health/", "expect_status": 200, "must_contain": "", "check_cert": false },
+    { "name": "GraphQL endpoint",           "url": "https://app.mahansco.ir/graphql/",    "expect_status": 200, "must_contain": "", "check_cert": false },
+    { "name": "Marketing API",              "url": "https://mahansco.ir/api/",            "expect_status": 200, "must_contain": "", "check_cert": false },
+    { "name": "robots.txt canary",          "url": "https://mahansco.ir/robots.txt",      "expect_status": 200, "must_contain": "", "check_cert": false }
+  ]
+}

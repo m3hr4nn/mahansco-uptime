@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0E4D92" />
+  <title>Mahansco Uptime</title>
+  <style>
+    :root { --ok: #1f9d55; --bad: #e3342f; --bg: #0e1117; --card: #161b22; --fg: #e6edf3; --muted: #8b949e; --accent: #0E4D92; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font: 15px/1.5 -apple-system, system-ui, Segoe UI, Roboto, sans-serif; background: var(--bg); color: var(--fg); }
+    header { padding: 28px 20px 8px; max-width: 880px; margin: 0 auto; }
+    h1 { margin: 0 0 4px; font-size: 22px; }
+    .sub { color: var(--muted); font-size: 13px; }
+    main { max-width: 880px; margin: 0 auto; padding: 12px 20px 48px; }
+    .summary { display: flex; align-items: center; gap: 10px; margin: 16px 0 20px; font-size: 18px; }
+    .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+    .card { background: var(--card); border: 1px solid #21262d; border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; }
+    .row { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .name { font-weight: 600; }
+    .badge { font-size: 12px; padding: 2px 9px; border-radius: 99px; font-weight: 600; }
+    .badge.ok { background: rgba(31,157,85,.15); color: #56d364; }
+    .badge.bad { background: rgba(227,52,47,.15); color: #ff7b72; }
+    .meta { color: var(--muted); font-size: 12px; margin-top: 6px; }
+    .bars { display: flex; gap: 2px; margin-top: 10px; }
+    .bar { flex: 1; height: 26px; border-radius: 2px; background: #30363d; }
+    .bar.ok { background: var(--ok); }
+    .bar.bad { background: var(--bad); }
+    .uptime { font-variant-numeric: tabular-nums; }
+    footer { text-align: center; color: var(--muted); font-size: 12px; padding: 20px; }
+    a { color: #58a6ff; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Mahansco Uptime</h1>
+    <div class="sub">Tier-1 blackbox monitor · checks every 15 min via GitHub Actions</div>
+  </header>
+  <main>
+    <div class="summary" id="summary"><span class="dot" style="background:var(--muted)"></span> Loading…</div>
+    <div id="targets"></div>
+  </main>
+  <footer>
+    Updated <span id="updated">—</span> ·
+    <a href="https://github.com/m3hr4nn/mahansco-uptime">source</a>
+  </footer>
+
+  <script>
+    const WINDOW = 40; // recent samples to chart per target
+
+    fetch("../history.json?_=" + Date.now())
+      .then(r => r.json())
+      .then(render)
+      .catch(() => {
+        document.getElementById("summary").innerHTML =
+          '<span class="dot" style="background:var(--bad)"></span> Could not load history.json';
+      });
+
+    function render(history) {
+      if (!Array.isArray(history) || history.length === 0) {
+        document.getElementById("summary").innerHTML =
+          '<span class="dot" style="background:var(--muted)"></span> No samples yet';
+        return;
+      }
+      const latest = history[history.length - 1];
+      const names = Object.keys(latest.results);
+
+      const upNow = names.filter(n => latest.results[n].ok).length;
+      const allOk = upNow === names.length;
+      document.getElementById("summary").innerHTML =
+        `<span class="dot" style="background:${allOk ? 'var(--ok)' : 'var(--bad)'}"></span> ` +
+        `<strong>${upNow}/${names.length}</strong> endpoints healthy`;
+      document.getElementById("updated").textContent = latest.ts;
+
+      const container = document.getElementById("targets");
+      for (const name of names) {
+        const samples = history.filter(s => s.results[name]).slice(-WINDOW);
+        const okCount = samples.filter(s => s.results[name].ok).length;
+        const uptime = ((okCount / samples.length) * 100).toFixed(1);
+        const cur = latest.results[name];
+
+        const bars = samples.map(s => {
+          const r = s.results[name];
+          return `<div class="bar ${r.ok ? 'ok' : 'bad'}" title="${s.ts}: ${r.detail}"></div>`;
+        }).join("");
+
+        const card = document.createElement("div");
+        card.className = "card";
+        card.innerHTML = `
+          <div class="row">
+            <span class="name">${name}</span>
+            <span class="badge ${cur.ok ? 'ok' : 'bad'}">${cur.ok ? 'UP' : 'DOWN'}</span>
+          </div>
+          <div class="meta">${cur.detail} · <span class="uptime">${uptime}%</span> over last ${samples.length} checks</div>
+          <div class="bars">${bars}</div>`;
+        container.appendChild(card);
+      }
+    }
+  </script>
+</body>
+</html>
