@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A free, **Tier-1** (blackbox / endpoint-only) uptime monitor for Mahansco's public web surface.
 It runs entirely on **GitHub Actions** — never on the monitored host — issues HTTPS `GET`s to the
-public endpoints every 15 minutes, and posts to a **private Telegram channel** on state changes
+public endpoints every 5 minutes, and posts to a **private Telegram channel** on state changes
 only. The authoritative design and rationale live in `20260627-TELEGRAM_BOT_MONITORING.md`; read
 it before making non-trivial changes.
 
@@ -48,16 +48,22 @@ Single-process Python script driven by a cron workflow. The whole system is four
    `check_cert`, optional `expected_ip` (empty = skip DNS-match check).
 
 2. **`monitor.py`** — `main()` loops every target, calls `check()` (DNS/expected-IP → HTTP
-   GET+timing → status → body marker → latency), applies the debounce, sends transition alerts,
-   then writes state + history. `check_cert` targets also get a `cert_days_left()` probe.
+   GET+timing → status → body marker → latency; returns `ok, detail, latency_ms, status_code,
+   dns_ms`), applies the debounce, sends transition alerts, then writes state + history + rollup.
+   `check_cert` targets also get a `cert_info()` probe (days-left, valid-from/to, issuer).
 
 3. **`state.json`** — last-known state per target, keyed by target `name`:
-   `{up, fail_streak, last_detail, last_check, cert_days_left, cert_warned_<thr>}`. **Machine-owned:
-   the workflow commits it back each run — do not hand-edit.** This committed-back state is what
-   makes transition-only alerting possible with zero infrastructure.
+   `{up, fail_streak, last_detail, last_check, latency_ms, status_code, dns_ms,
+   cert_days_left, cert_not_after, cert_not_before, cert_issuer, cert_warned_<thr>}`.
+   **Machine-owned: the workflow commits it back each run — do not hand-edit.** This committed-back
+   state is what makes transition-only alerting possible with zero infrastructure.
 
-4. **`history.json`** — append-only rolling samples, capped to the last 2880 (~30 days at 15-min
-   cadence). Feeds the daily digest and the `docs/index.html` status page. Also machine-owned.
+4. **`history.json`** — append-only rolling samples, capped to the last 2880 (~10 days at the 5-min
+   cadence). Each per-target result is `{ok, detail, latency_ms, status_code, dns_ms}`. Feeds the
+   digest and the `docs/index.html` status page (sparkline, 24h/7d uptime, incident log). Machine-owned.
+
+5. **`uptime_daily.json`** — compact per-day `{up, total}` tallies per target, kept ~35 days. Backs
+   the status page's **30-day** uptime number without bloating `history.json`. Machine-owned.
 
 ### Two behaviours that are easy to get subtly wrong
 
@@ -71,14 +77,17 @@ Single-process Python script driven by a cron workflow. The whole system is four
 
 ### Workflow (`.github/workflows/monitor.yml`)
 
-Cron `*/15 * * * *` + `workflow_dispatch`. Needs `permissions: contents: write` to push state back.
+Cron `*/5 * * * *` + `workflow_dispatch`. Needs `permissions: contents: write` to push state back.
 The commit-back step's message ends in `[skip ci]` so the push does **not** retrigger the workflow —
 preserve that. `concurrency` prevents overlapping runs.
 
 ### Status page (`docs/index.html`)
 
-Optional GitHub Pages page. Pure static HTML+JS, no build; fetches `../history.json` at runtime and
-renders per-target status, recent uptime %, and a latency strip. Served from `/docs` on `main`.
+Optional GitHub Pages page. Pure static HTML+JS, no build. Served from `/docs` on `main`; the
+workflow `cp`s `history.json`, `state.json`, and `uptime_daily.json` into `docs/` each run so the
+page can fetch them. Renders per-target status, a latency sparkline (bar height = latency, colour =
+ok/slow/down), 24h/7d/30d uptime, TLS cert panel, an incident log, and "time since last outage".
+The page degrades gracefully if `state.json`/`uptime_daily.json` are missing (cert/30d show `—`).
 
 ## Conventions specific to this repo
 

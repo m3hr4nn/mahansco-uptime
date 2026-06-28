@@ -7,14 +7,16 @@
   <meta name="theme-color" content="#0E4D92" />
   <title>Mahansco Uptime</title>
   <style>
-    :root { --ok: #1f9d55; --bad: #e3342f; --bg: #0e1117; --card: #161b22; --fg: #e6edf3; --muted: #8b949e; --accent: #0E4D92; }
+    :root { --ok: #1f9d55; --warn: #d9a400; --bad: #e3342f; --bg: #0e1117; --card: #161b22; --fg: #e6edf3; --muted: #8b949e; --accent: #0E4D92; }
     * { box-sizing: border-box; }
     body { margin: 0; font: 15px/1.5 -apple-system, system-ui, Segoe UI, Roboto, sans-serif; background: var(--bg); color: var(--fg); }
     header { padding: 28px 20px 8px; max-width: 880px; margin: 0 auto; }
     h1 { margin: 0 0 4px; font-size: 22px; }
+    h2 { font-size: 15px; margin: 28px 0 10px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
     .sub { color: var(--muted); font-size: 13px; }
     main { max-width: 880px; margin: 0 auto; padding: 12px 20px 48px; }
-    .summary { display: flex; align-items: center; gap: 10px; margin: 16px 0 20px; font-size: 18px; }
+    .summary { display: flex; align-items: center; gap: 10px; margin: 16px 0 6px; font-size: 18px; }
+    .since { color: var(--muted); font-size: 13px; margin-bottom: 8px; }
     .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
     .card { background: var(--card); border: 1px solid #21262d; border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; }
     .row { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
@@ -23,11 +25,26 @@
     .badge.ok { background: rgba(31,157,85,.15); color: #56d364; }
     .badge.bad { background: rgba(227,52,47,.15); color: #ff7b72; }
     .meta { color: var(--muted); font-size: 12px; margin-top: 6px; }
-    .bars { display: flex; gap: 2px; margin-top: 10px; }
-    .bar { flex: 1; height: 26px; border-radius: 2px; background: #30363d; }
+    .meta code { color: var(--fg); background: #21262d; padding: 1px 5px; border-radius: 4px; font-size: 11px; }
+    .uptimes { display: flex; gap: 16px; margin-top: 8px; font-size: 12px; color: var(--muted); }
+    .uptimes b { color: var(--fg); font-variant-numeric: tabular-nums; }
+    .bars { display: flex; gap: 2px; margin-top: 10px; align-items: flex-end; height: 30px; }
+    .bar { flex: 1; min-height: 3px; border-radius: 2px; background: #30363d; }
     .bar.ok { background: var(--ok); }
-    .bar.bad { background: var(--bad); }
-    .uptime { font-variant-numeric: tabular-nums; }
+    .bar.slow { background: var(--warn); }
+    .bar.bad { background: var(--bad); height: 100% !important; }
+    .legend { display: flex; gap: 14px; font-size: 11px; color: var(--muted); margin-top: 6px; }
+    .legend span { display: inline-flex; align-items: center; gap: 5px; }
+    .swatch { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+    .cert { font-size: 12px; margin-top: 8px; padding-top: 8px; border-top: 1px solid #21262d; color: var(--muted); }
+    .cert.warn { color: #f0c674; }
+    .cert.bad { color: #ff7b72; }
+    .incident { font-size: 13px; padding: 8px 0; border-bottom: 1px solid #21262d; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .incident:last-child { border-bottom: 0; }
+    .incident .when { color: var(--muted); font-size: 12px; }
+    .incident .dur { font-variant-numeric: tabular-nums; }
+    .ongoing { color: #ff7b72; font-weight: 600; }
+    .empty { color: var(--muted); font-size: 13px; }
     footer { text-align: center; color: var(--muted); font-size: 12px; padding: 20px; }
     a { color: #58a6ff; }
   </style>
@@ -35,11 +52,14 @@
 <body>
   <header>
     <h1>Mahansco Uptime</h1>
-    <div class="sub">Tier-1 blackbox monitor · checks every 15 min via GitHub Actions</div>
+    <div class="sub">Tier-1 blackbox monitor · checks every 5 min via GitHub Actions</div>
   </header>
   <main>
     <div class="summary" id="summary"><span class="dot" style="background:var(--muted)"></span> Loading…</div>
+    <div class="since" id="since"></div>
     <div id="targets"></div>
+    <h2>Incidents</h2>
+    <div class="card" id="incidents"><div class="empty">Loading…</div></div>
   </main>
   <footer>
     Updated <span id="updated">—</span> ·
@@ -47,20 +67,88 @@
   </footer>
 
   <script>
-    const WINDOW = 40; // recent samples to chart per target
+    const WINDOW = 40;        // recent samples to chart per target
+    const MIN_FAILS = 2;      // mirrors failures_before_down: only count confirmed outages
+    const SLOW_MS = 3000;     // mirrors latency_warn_ms: "up but slow" threshold
+    const DAY = 864e5, WEEK = 7 * DAY;
 
-    fetch("history.json?_=" + Date.now())
-      .then(r => r.json())
-      .then(render)
-      .catch(() => {
-        document.getElementById("summary").innerHTML =
-          '<span class="dot" style="background:var(--bad)"></span> Could not load history.json';
-      });
+    function fetchJson(path) {
+      return fetch(path + "?_=" + Date.now())
+        .then(r => r.ok ? r.json() : null)
+        .catch(() => null);
+    }
 
-    function render(history) {
+    Promise.all([
+      fetchJson("history.json"),
+      fetchJson("state.json"),
+      fetchJson("uptime_daily.json"),
+    ]).then(([history, state, rollup]) => render(history, state || {}, rollup || {}))
+      .catch(() => fail("Could not load status data"));
+
+    function fail(msg) {
+      document.getElementById("summary").innerHTML =
+        '<span class="dot" style="background:var(--bad)"></span> ' + msg;
+    }
+
+    // "2026-06-28 14:05 UTC" -> Date
+    function parseTs(ts) { return new Date(ts.replace(" UTC", "Z").replace(" ", "T")); }
+
+    function pct(ok, total) { return total ? (ok / total * 100) : null; }
+    function fmtPct(v) { return v == null ? "—" : v.toFixed(v >= 99.95 ? 0 : 1) + "%"; }
+
+    function humanize(ms) {
+      const m = Math.round(ms / 60000);
+      if (m < 60) return m + "m";
+      const h = Math.floor(m / 60), rm = m % 60;
+      if (h < 24) return rm ? `${h}h ${rm}m` : `${h}h`;
+      const d = Math.floor(h / 24), rh = h % 24;
+      return rh ? `${d}d ${rh}h` : `${d}d`;
+    }
+
+    function uptimeWindow(history, name, ms) {
+      const cutoff = Date.now() - ms;
+      const s = history.filter(h => h.results[name] && parseTs(h.ts).getTime() >= cutoff);
+      const ok = s.filter(h => h.results[name].ok).length;
+      return pct(ok, s.length);
+    }
+
+    function uptime30d(rollup, name) {
+      let up = 0, total = 0;
+      for (const d of Object.keys(rollup).sort().slice(-30)) {
+        const a = rollup[d] && rollup[d][name];
+        if (a) { up += a.up; total += a.total; }
+      }
+      return pct(up, total);
+    }
+
+    // Contiguous runs of >= MIN_FAILS failed checks = one incident.
+    function incidentsFor(history, name) {
+      const out = [];
+      let run = [];
+      const flush = () => {
+        if (run.length >= MIN_FAILS) {
+          const start = parseTs(run[0].ts), end = parseTs(run[run.length - 1].ts);
+          out.push({ name, start, end, ongoing: false, detail: run[run.length - 1].results[name].detail });
+        }
+        run = [];
+      };
+      for (const h of history) {
+        const r = h.results[name];
+        if (!r) continue;
+        if (r.ok) flush(); else run.push(h);
+      }
+      if (run.length >= MIN_FAILS) {
+        const start = parseTs(run[0].ts), end = parseTs(run[run.length - 1].ts);
+        out.push({ name, start, end, ongoing: true, detail: run[run.length - 1].results[name].detail });
+      }
+      return out;
+    }
+
+    function render(history, state, rollup) {
       if (!Array.isArray(history) || history.length === 0) {
         document.getElementById("summary").innerHTML =
           '<span class="dot" style="background:var(--muted)"></span> No samples yet';
+        document.getElementById("incidents").innerHTML = '<div class="empty">No data yet</div>';
         return;
       }
       const latest = history[history.length - 1];
@@ -73,17 +161,48 @@
         `<strong>${upNow}/${names.length}</strong> endpoints healthy`;
       document.getElementById("updated").textContent = latest.ts;
 
+      // --- per-target cards ---
       const container = document.getElementById("targets");
+      container.innerHTML = "";
+      const allIncidents = [];
       for (const name of names) {
-        const samples = history.filter(s => s.results[name]).slice(-WINDOW);
-        const okCount = samples.filter(s => s.results[name].ok).length;
-        const uptime = ((okCount / samples.length) * 100).toFixed(1);
-        const cur = latest.results[name];
+        allIncidents.push(...incidentsFor(history, name));
 
+        const samples = history.filter(s => s.results[name]).slice(-WINDOW);
+        const cur = latest.results[name];
+        const st = state[name] || {};
+
+        const lat = samples.map(s => s.results[name].latency_ms).filter(v => v != null);
+        const maxLat = Math.max(1, ...lat);
         const bars = samples.map(s => {
           const r = s.results[name];
-          return `<div class="bar ${r.ok ? 'ok' : 'bad'}" title="${s.ts}: ${r.detail}"></div>`;
+          const cls = !r.ok ? "bad" : (r.latency_ms > SLOW_MS ? "slow" : "ok");
+          const h = r.latency_ms != null ? Math.max(10, Math.round(r.latency_ms / maxLat * 100)) : 100;
+          const tip = `${s.ts}: ${r.detail}` + (r.status_code ? ` (HTTP ${r.status_code})` : "");
+          return `<div class="bar ${cls}" style="height:${h}%" title="${tip}"></div>`;
         }).join("");
+
+        const u24 = uptimeWindow(history, name, DAY);
+        const u7 = uptimeWindow(history, name, WEEK);
+        const u30 = uptime30d(rollup, name);
+
+        // current detail line: status code, latency, dns
+        const status = cur.status_code || st.status_code;
+        const curLat = cur.latency_ms != null ? cur.latency_ms : st.latency_ms;
+        const dns = cur.dns_ms != null ? cur.dns_ms : st.dns_ms;
+        const detailBits = [cur.detail];
+        if (status) detailBits.push(`<code>HTTP ${status}</code>`);
+        if (dns != null) detailBits.push(`DNS ${dns}ms`);
+
+        // cert panel
+        let certHtml = "";
+        if (st.cert_days_left != null) {
+          const d = st.cert_days_left;
+          const cls = d <= 7 ? "bad" : (d <= 21 ? "warn" : "");
+          const issuer = st.cert_issuer ? ` · ${st.cert_issuer}` : "";
+          const until = st.cert_not_after ? ` (expires ${st.cert_not_after})` : "";
+          certHtml = `<div class="cert ${cls}">🔒 TLS cert: <b>${d} days</b> left${until}${issuer}</div>`;
+        }
 
         const card = document.createElement("div");
         card.className = "card";
@@ -92,9 +211,50 @@
             <span class="name">${name}</span>
             <span class="badge ${cur.ok ? 'ok' : 'bad'}">${cur.ok ? 'UP' : 'DOWN'}</span>
           </div>
-          <div class="meta">${cur.detail} · <span class="uptime">${uptime}%</span> over last ${samples.length} checks</div>
-          <div class="bars">${bars}</div>`;
+          <div class="meta">${detailBits.join(" · ")}${st.last_check ? ` · checked ${st.last_check}` : ""}</div>
+          <div class="uptimes">
+            <span>24h <b>${fmtPct(u24)}</b></span>
+            <span>7d <b>${fmtPct(u7)}</b></span>
+            <span>30d <b>${fmtPct(u30)}</b></span>
+          </div>
+          <div class="bars">${bars}</div>
+          ${certHtml}`;
         container.appendChild(card);
+      }
+
+      // legend (once, after first card)
+      const legend = document.createElement("div");
+      legend.className = "legend";
+      legend.innerHTML =
+        `<span><i class="swatch" style="background:var(--ok)"></i>up (bar height = latency)</span>` +
+        `<span><i class="swatch" style="background:var(--warn)"></i>slow &gt;${SLOW_MS}ms</span>` +
+        `<span><i class="swatch" style="background:var(--bad)"></i>down</span>`;
+      container.appendChild(legend);
+
+      // --- incidents + time since last outage ---
+      allIncidents.sort((a, b) => b.start - a.start);
+      const ongoing = allIncidents.some(i => i.ongoing);
+      const sinceEl = document.getElementById("since");
+      if (ongoing) {
+        sinceEl.innerHTML = '<span class="ongoing">⚠ outage in progress</span>';
+      } else if (allIncidents.length) {
+        sinceEl.textContent = `${humanize(Date.now() - allIncidents[0].end.getTime())} since last outage`;
+      } else {
+        sinceEl.textContent = "No outages on record";
+      }
+
+      const incEl = document.getElementById("incidents");
+      if (!allIncidents.length) {
+        incEl.innerHTML = '<div class="empty">No incidents recorded in the retained window.</div>';
+      } else {
+        incEl.innerHTML = allIncidents.slice(0, 12).map(i => {
+          const dur = humanize(Math.max(60000, i.end.getTime() - i.start.getTime()));
+          const tag = i.ongoing ? '<span class="ongoing">ongoing</span>' : `<span class="dur">${dur}</span>`;
+          return `<div class="incident">
+            <span><b>${i.name}</b> <span class="when">${i.start.toISOString().slice(0, 16).replace("T", " ")} UTC</span></span>
+            ${tag}
+          </div>`;
+        }).join("");
       }
     }
   </script>
