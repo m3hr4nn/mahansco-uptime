@@ -28,9 +28,20 @@ BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
 
 
+# Iran Standard Time is a fixed UTC+03:30 (no DST since 2022). All human-facing
+# timestamps (Telegram, status page) are shown in Tehran time; UTC is still used
+# internally for any elapsed-time math.
+TEHRAN = datetime.timezone(datetime.timedelta(hours=3, minutes=30))
+
+
 def utcnow():
     """Timezone-aware current UTC time (utcnow() is deprecated in 3.12)."""
     return datetime.datetime.now(datetime.timezone.utc)
+
+
+def fmt_local(dt):
+    """Format a timezone-aware datetime as a Tehran-time display string."""
+    return dt.astimezone(TEHRAN).strftime("%Y-%m-%d %H:%M") + " IRST"
 
 
 def load_json(path, default):
@@ -135,7 +146,7 @@ def main():
     # On-demand delivery test (workflow_dispatch input). Confirms the bot token,
     # chat id, and bot-admin status end-to-end without needing a real outage.
     if os.environ.get("TEST_PING", "").lower() == "true":
-        now = utcnow().strftime("%Y-%m-%d %H:%M UTC")
+        now = fmt_local(utcnow())
         ok = telegram(f"✅ <b>Test ping</b> — mahansco-uptime is wired up correctly.\n<i>{now}</i>")
         print("Test ping delivered." if ok else "Test ping FAILED — see error above.")
 
@@ -143,8 +154,8 @@ def main():
     history = load_json(HISTORY_PATH, [])
     rollup = load_json(ROLLUP_PATH, {})
     nowdt = utcnow()
-    now = nowdt.strftime("%Y-%m-%d %H:%M UTC")
-    today = nowdt.strftime("%Y-%m-%d")
+    now = fmt_local(nowdt)
+    today = nowdt.astimezone(TEHRAN).strftime("%Y-%m-%d")
     day_agg = rollup.setdefault(today, {})
     sample = {"ts": now, "results": {}}
 
@@ -210,19 +221,23 @@ def main():
     for old in sorted(rollup)[:-35]:
         del rollup[old]
 
-    json.dump(state, open(STATE_PATH, "w", encoding="utf-8"), indent=2, ensure_ascii=False)
-    json.dump(history, open(HISTORY_PATH, "w", encoding="utf-8"), indent=2, ensure_ascii=False)
-    json.dump(rollup, open(ROLLUP_PATH, "w", encoding="utf-8"), indent=2, ensure_ascii=False)
-
-    # Scheduled "heartbeat" digest so the channel isn't silent between incidents.
-    # Cadence is config-driven via `digest_every_hours` (1 = hourly, 24 = once daily),
-    # anchored on `daily_digest_hour_utc` so e.g. a 6h cadence lands at 05/11/17/23 UTC.
-    # Also sendable on demand via the FORCE_DIGEST workflow input.
+    # Heartbeat digest so the channel isn't silent between incidents. Fires once
+    # `digest_every_hours` have ELAPSED since the previous one (tracked in state),
+    # rather than at a fixed minute-of-hour -- GitHub's cron is throttled and jittery,
+    # so an elapsed-time gate is the only reliable way to get a roughly-hourly cadence
+    # off the 5-min run schedule. Also sendable on demand via the FORCE_DIGEST input.
     every = SETTINGS.get("digest_every_hours", 24)
-    on_schedule = (nowdt.minute < 5
-                   and nowdt.hour % every == SETTINGS["daily_digest_hour_utc"] % every)
+    meta = state.get("_meta", {})
+    last_digest = meta.get("last_digest_utc")
+    due = True
+    if last_digest:
+        try:
+            elapsed = (nowdt - datetime.datetime.fromisoformat(last_digest)).total_seconds()
+            due = elapsed >= every * 3600 - 150   # 150s slack absorbs run-to-run jitter
+        except ValueError:
+            due = True
     force_digest = os.environ.get("FORCE_DIGEST", "").lower() == "true"
-    if force_digest or on_schedule:
+    if force_digest or due:
         up = sum(1 for r in sample["results"].values() if r["ok"])
         total = len(sample["results"])
         label = "Hourly digest" if every == 1 else "Status digest"
@@ -231,7 +246,16 @@ def main():
             mark = "\U0001F7E2" if r["ok"] else "\U0001F534"
             lat = f" · {r['latency_ms']}ms" if r["latency_ms"] else ""
             lines.append(f"{mark} {n}{lat}")
-        telegram("\n".join(lines))
+        sent = telegram("\n".join(lines))
+        # Only the scheduled (due) heartbeat advances the clock; an on-demand
+        # FORCE_DIGEST send must not reset the hourly cadence.
+        if due and sent:
+            meta["last_digest_utc"] = nowdt.isoformat()
+    state["_meta"] = meta
+
+    json.dump(state, open(STATE_PATH, "w", encoding="utf-8"), indent=2, ensure_ascii=False)
+    json.dump(history, open(HISTORY_PATH, "w", encoding="utf-8"), indent=2, ensure_ascii=False)
+    json.dump(rollup, open(ROLLUP_PATH, "w", encoding="utf-8"), indent=2, ensure_ascii=False)
 
 
 if __name__ == "__main__":

@@ -52,7 +52,7 @@
 <body>
   <header>
     <h1>Mahansco Uptime</h1>
-    <div class="sub">Tier-1 blackbox monitor · checks every 5 min via GitHub Actions</div>
+    <div class="sub">Refresh interval: 5 min · GitHub Actions</div>
   </header>
   <main>
     <div class="summary" id="summary"><span class="dot" style="background:var(--muted)"></span> Loading…</div>
@@ -90,8 +90,17 @@
         '<span class="dot" style="background:var(--bad)"></span> ' + msg;
     }
 
-    // "2026-06-28 14:05 UTC" -> Date
-    function parseTs(ts) { return new Date(ts.replace(" UTC", "Z").replace(" ", "T")); }
+    // Stored timestamps may be Tehran time ("... IRST", +03:30) or, for older
+    // retained samples, UTC ("... UTC"). Map either to a correct absolute instant.
+    function parseTs(ts) {
+      return new Date(ts.replace(" IRST", "+03:30").replace(" UTC", "Z").replace(" ", "T"));
+    }
+
+    // Format an absolute Date as a Tehran-time (UTC+03:30) display string.
+    function fmtLocal(d) {
+      return new Date(d.getTime() + (3 * 60 + 30) * 60000)
+        .toISOString().slice(0, 16).replace("T", " ") + " IRST";
+    }
 
     function pct(ok, total) { return total ? (ok / total * 100) : null; }
     function fmtPct(v) { return v == null ? "—" : v.toFixed(v >= 99.95 ? 0 : 1) + "%"; }
@@ -251,7 +260,7 @@
           const dur = humanize(Math.max(60000, i.end.getTime() - i.start.getTime()));
           const tag = i.ongoing ? '<span class="ongoing">ongoing</span>' : `<span class="dur">${dur}</span>`;
           return `<div class="incident">
-            <span><b>${i.name}</b> <span class="when">${i.start.toISOString().slice(0, 16).replace("T", " ")} UTC</span></span>
+            <span><b>${i.name}</b> <span class="when">${fmtLocal(i.start)}</span></span>
             ${tag}
           </div>`;
         }).join("");

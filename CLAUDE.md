@@ -19,7 +19,9 @@ it before making non-trivial changes.
   via env vars only. Never hardcode or commit them.
 - **State-change alerting only.** The channel must never receive per-check "still up" spam. The
   only proactive heartbeat is the recurring digest, whose cadence is set by `digest_every_hours`
-  in `targets.json` (`1` = hourly, `24` = once daily, anchored on `daily_digest_hour_utc`).
+  in `targets.json` (`1` = hourly, `24` = once daily). The digest fires once that many hours have
+  **elapsed** since the last one (tracked in `state["_meta"]["last_digest_utc"]`) rather than at a
+  fixed clock time — GitHub's cron is jittery, so an elapsed-time gate is the only reliable cadence.
 
 ## Commands
 
@@ -42,7 +44,7 @@ after two runs and 🟢 on revert.
 Single-process Python script driven by a cron workflow. The whole system is four moving parts:
 
 1. **`targets.json`** — the entire configuration surface: a `settings` block (`timeout_seconds`,
-   `latency_warn_ms`, `failures_before_down`, `cert_warn_days`, `daily_digest_hour_utc`, `digest_every_hours`) and a
+   `latency_warn_ms`, `failures_before_down`, `cert_warn_days`, `digest_every_hours`) and a
    `targets` array. **Adding/removing endpoints or changing thresholds is a config edit only — never
    a code change.** Each target: `name`, `url`, `expect_status`, `must_contain` (empty = skip),
    `check_cert`, optional `expected_ip` (empty = skip DNS-match check).
@@ -91,9 +93,11 @@ The page degrades gracefully if `state.json`/`uptime_daily.json` are missing (ce
 
 ## Conventions specific to this repo
 
-- Timestamps are UTC throughout; use the `utcnow()` helper (timezone-aware — `datetime.utcnow()` is
-  deprecated in 3.12), and format display strings as `"%Y-%m-%d %H:%M UTC"`.
-- Telegram messages use `parse_mode=HTML` and always carry a UTC timestamp. Emojis are written as
+- Time math is UTC internally (`utcnow()` helper — timezone-aware, since `datetime.utcnow()` is
+  deprecated in 3.12), but every **human-facing** timestamp is shown in **Tehran time** (Iran
+  Standard Time, fixed UTC+03:30, no DST). Use `fmt_local()` → `"%Y-%m-%d %H:%M IRST"`. The status
+  page's `parseTs()` still accepts the old `... UTC` label so retained history samples parse correctly.
+- Telegram messages use `parse_mode=HTML` and always carry a Tehran (IRST) timestamp. Emojis are written as
   `\U0001F…` escapes to keep the source ASCII-clean.
 - JSON is written with `indent=2, ensure_ascii=False` so committed-back state stays diff-friendly
   and readable (Persian/Unicode preserved).

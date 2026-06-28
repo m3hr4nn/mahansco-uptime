@@ -4,7 +4,6 @@
     "latency_warn_ms": 3000,
     "failures_before_down": 2,
     "cert_warn_days": [21, 7, 1],
-    "daily_digest_hour_utc": 5,
     "digest_every_hours": 1
   },
   "targets": [
