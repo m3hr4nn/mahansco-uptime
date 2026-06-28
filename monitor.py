@@ -173,14 +173,20 @@ def main():
     json.dump(state, open(STATE_PATH, "w", encoding="utf-8"), indent=2, ensure_ascii=False)
     json.dump(history, open(HISTORY_PATH, "w", encoding="utf-8"), indent=2, ensure_ascii=False)
 
-    # Daily digest -- the only scheduled "heartbeat" so the channel isn't silent for
-    # days. Also sendable on demand via the FORCE_DIGEST workflow input.
+    # Scheduled "heartbeat" digest so the channel isn't silent between incidents.
+    # Cadence is config-driven via `digest_every_hours` (1 = hourly, 24 = once daily),
+    # anchored on `daily_digest_hour_utc` so e.g. a 6h cadence lands at 05/11/17/23 UTC.
+    # Also sendable on demand via the FORCE_DIGEST workflow input.
     nowdt = utcnow()
+    every = SETTINGS.get("digest_every_hours", 24)
+    on_schedule = (nowdt.minute < 5
+                   and nowdt.hour % every == SETTINGS["daily_digest_hour_utc"] % every)
     force_digest = os.environ.get("FORCE_DIGEST", "").lower() == "true"
-    if force_digest or (nowdt.hour == SETTINGS["daily_digest_hour_utc"] and nowdt.minute < 5):
+    if force_digest or on_schedule:
         up = sum(1 for r in sample["results"].values() if r["ok"])
         total = len(sample["results"])
-        lines = [f"\U0001F4CA <b>Daily digest</b> — {now}", f"{up}/{total} endpoints healthy", ""]
+        label = "Hourly digest" if every == 1 else "Status digest"
+        lines = [f"\U0001F4CA <b>{label}</b> — {now}", f"{up}/{total} endpoints healthy", ""]
         for n, r in sample["results"].items():
             mark = "\U0001F7E2" if r["ok"] else "\U0001F534"
             lat = f" · {r['latency_ms']}ms" if r["latency_ms"] else ""

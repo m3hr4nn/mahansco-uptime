@@ -17,8 +17,9 @@ it before making non-trivial changes.
   and no `pip install` step in the workflow — keep it that way.
 - **No secrets in the repo.** `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` come from GitHub Secrets
   via env vars only. Never hardcode or commit them.
-- **State-change alerting only.** The channel must never receive "still up" messages. The only
-  proactive heartbeat is the once-daily digest.
+- **State-change alerting only.** The channel must never receive per-check "still up" spam. The
+  only proactive heartbeat is the recurring digest, whose cadence is set by `digest_every_hours`
+  in `targets.json` (`1` = hourly, `24` = once daily, anchored on `daily_digest_hour_utc`).
 
 ## Commands
 
@@ -41,7 +42,7 @@ after two runs and 🟢 on revert.
 Single-process Python script driven by a cron workflow. The whole system is four moving parts:
 
 1. **`targets.json`** — the entire configuration surface: a `settings` block (`timeout_seconds`,
-   `latency_warn_ms`, `failures_before_down`, `cert_warn_days`, `daily_digest_hour_utc`) and a
+   `latency_warn_ms`, `failures_before_down`, `cert_warn_days`, `daily_digest_hour_utc`, `digest_every_hours`) and a
    `targets` array. **Adding/removing endpoints or changing thresholds is a config edit only — never
    a code change.** Each target: `name`, `url`, `expect_status`, `must_contain` (empty = skip),
    `check_cert`, optional `expected_ip` (empty = skip DNS-match check).
