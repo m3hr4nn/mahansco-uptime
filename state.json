@@ -2,8 +2,8 @@
   "Landing (mahansco.ir)": {
     "up": true,
     "fail_streak": 0,
-    "last_detail": "OK 1257ms",
-    "last_check": "2026-06-28 01:54 UTC",
+    "last_detail": "OK 1273ms",
+    "last_check": "2026-06-28 06:14 UTC",
     "cert_days_left": 73,
     "cert_warned_21": false,
     "cert_warned_7": false,
@@ -12,8 +12,8 @@
   "App SPA (app.mahansco.ir)": {
     "up": true,
     "fail_streak": 0,
-    "last_detail": "OK 931ms",
-    "last_check": "2026-06-28 01:54 UTC",
+    "last_detail": "OK 983ms",
+    "last_check": "2026-06-28 06:14 UTC",
     "cert_days_left": 73,
     "cert_warned_21": false,
     "cert_warned_7": false,
@@ -22,25 +22,25 @@
   "App health API": {
     "up": true,
     "fail_streak": 0,
-    "last_detail": "OK 937ms",
-    "last_check": "2026-06-28 01:54 UTC"
+    "last_detail": "OK 835ms",
+    "last_check": "2026-06-28 06:14 UTC"
   },
   "GraphQL endpoint": {
     "up": true,
     "fail_streak": 0,
-    "last_detail": "OK 683ms",
-    "last_check": "2026-06-28 01:54 UTC"
+    "last_detail": "OK 819ms",
+    "last_check": "2026-06-28 06:14 UTC"
   },
   "Marketing API": {
     "up": true,
     "fail_streak": 0,
-    "last_detail": "OK 1073ms",
-    "last_check": "2026-06-28 01:54 UTC"
+    "last_detail": "OK 1298ms",
+    "last_check": "2026-06-28 06:14 UTC"
   },
   "robots.txt canary": {
     "up": true,
     "fail_streak": 0,
-    "last_detail": "OK 1110ms",
-    "last_check": "2026-06-28 01:54 UTC"
+    "last_detail": "OK 1315ms",
+    "last_check": "2026-06-28 06:14 UTC"
   }
 }
