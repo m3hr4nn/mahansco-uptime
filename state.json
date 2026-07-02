@@ -2,12 +2,12 @@
   "Landing (mahansco.ir)": {
     "up": true,
     "fail_streak": 0,
-    "last_detail": "OK 975ms",
-    "last_check": "2026-07-03 00:33 IRST",
-    "latency_ms": 975,
+    "last_detail": "OK 1297ms",
+    "last_check": "2026-07-03 01:46 IRST",
+    "latency_ms": 1297,
     "status_code": 200,
-    "dns_ms": 496,
-    "cert_days_left": 69,
+    "dns_ms": 197,
+    "cert_days_left": 68,
     "cert_not_after": "2026-09-09",
     "cert_not_before": "2026-06-11",
     "cert_issuer": "Let's Encrypt",
@@ -18,12 +18,12 @@
   "App SPA (app.mahansco.ir)": {
     "up": true,
     "fail_streak": 0,
-    "last_detail": "OK 949ms",
-    "last_check": "2026-07-03 00:33 IRST",
-    "latency_ms": 949,
+    "last_detail": "OK 1054ms",
+    "last_check": "2026-07-03 01:46 IRST",
+    "latency_ms": 1054,
     "status_code": 200,
-    "dns_ms": 246,
-    "cert_days_left": 69,
+    "dns_ms": 311,
+    "cert_days_left": 68,
     "cert_not_after": "2026-09-09",
     "cert_not_before": "2026-06-11",
     "cert_issuer": "Let's Encrypt",
@@ -34,40 +34,40 @@
   "App health API": {
     "up": true,
     "fail_streak": 0,
-    "last_detail": "OK 867ms",
-    "last_check": "2026-07-03 00:33 IRST",
-    "latency_ms": 867,
+    "last_detail": "OK 875ms",
+    "last_check": "2026-07-03 01:46 IRST",
+    "latency_ms": 875,
     "status_code": 200,
     "dns_ms": 0
   },
   "GraphQL endpoint": {
     "up": true,
     "fail_streak": 0,
-    "last_detail": "OK 847ms",
-    "last_check": "2026-07-03 00:33 IRST",
-    "latency_ms": 847,
+    "last_detail": "OK 802ms",
+    "last_check": "2026-07-03 01:46 IRST",
+    "latency_ms": 802,
     "status_code": 200,
     "dns_ms": 0
   },
   "Marketing API": {
     "up": true,
     "fail_streak": 0,
-    "last_detail": "OK 817ms",
-    "last_check": "2026-07-03 00:33 IRST",
-    "latency_ms": 817,
+    "last_detail": "OK 741ms",
+    "last_check": "2026-07-03 01:46 IRST",
+    "latency_ms": 741,
     "status_code": 200,
     "dns_ms": 0
   },
   "robots.txt canary": {
     "up": true,
     "fail_streak": 0,
-    "last_detail": "OK 915ms",
-    "last_check": "2026-07-03 00:33 IRST",
-    "latency_ms": 915,
+    "last_detail": "OK 1041ms",
+    "last_check": "2026-07-03 01:46 IRST",
+    "latency_ms": 1041,
     "status_code": 200,
     "dns_ms": 0
   },
   "_meta": {
-    "last_digest_utc": "2026-07-02T21:03:32.164749+00:00"
+    "last_digest_utc": "2026-07-02T22:16:09.089160+00:00"
   }
 }
