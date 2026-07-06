@@ -1,12 +1,12 @@
 {
   "Landing (mahansco.ir)": {
     "up": true,
-    "fail_streak": 0,
-    "last_detail": "OK 944ms",
-    "last_check": "2026-07-06 20:11 IRST",
-    "latency_ms": 944,
-    "status_code": 200,
-    "dns_ms": 404,
+    "fail_streak": 1,
+    "last_detail": "Request failed: TimeoutError",
+    "last_check": "2026-07-06 22:01 IRST",
+    "latency_ms": null,
+    "status_code": null,
+    "dns_ms": 344,
     "cert_days_left": 65,
     "cert_not_after": "2026-09-09",
     "cert_not_before": "2026-06-11",
@@ -17,12 +17,12 @@
   },
   "App SPA (app.mahansco.ir)": {
     "up": true,
-    "fail_streak": 1,
-    "last_detail": "Request failed: TimeoutError",
-    "last_check": "2026-07-06 20:11 IRST",
-    "latency_ms": null,
-    "status_code": null,
-    "dns_ms": 363,
+    "fail_streak": 0,
+    "last_detail": "OK 1042ms",
+    "last_check": "2026-07-06 22:01 IRST",
+    "latency_ms": 1042,
+    "status_code": 200,
+    "dns_ms": 230,
     "cert_days_left": 65,
     "cert_not_after": "2026-09-09",
     "cert_not_before": "2026-06-11",
@@ -32,10 +32,10 @@
     "cert_warned_1": false
   },
   "App health API": {
-    "up": true,
-    "fail_streak": 1,
+    "up": false,
+    "fail_streak": 2,
     "last_detail": "Request failed: TimeoutError",
-    "last_check": "2026-07-06 20:11 IRST",
+    "last_check": "2026-07-06 22:01 IRST",
     "latency_ms": null,
     "status_code": null,
     "dns_ms": 0
@@ -43,31 +43,31 @@
   "GraphQL endpoint": {
     "up": true,
     "fail_streak": 0,
-    "last_detail": "OK 936ms",
-    "last_check": "2026-07-06 20:11 IRST",
-    "latency_ms": 936,
+    "last_detail": "OK 919ms",
+    "last_check": "2026-07-06 22:01 IRST",
+    "latency_ms": 919,
     "status_code": 200,
     "dns_ms": 0
   },
   "Marketing API": {
     "up": true,
-    "fail_streak": 0,
-    "last_detail": "OK 1525ms",
-    "last_check": "2026-07-06 20:11 IRST",
-    "latency_ms": 1525,
-    "status_code": 200,
+    "fail_streak": 1,
+    "last_detail": "Request failed: TimeoutError",
+    "last_check": "2026-07-06 22:01 IRST",
+    "latency_ms": null,
+    "status_code": null,
     "dns_ms": 0
   },
   "robots.txt canary": {
     "up": true,
-    "fail_streak": 0,
-    "last_detail": "OK 1041ms",
-    "last_check": "2026-07-06 20:11 IRST",
-    "latency_ms": 1041,
-    "status_code": 200,
+    "fail_streak": 1,
+    "last_detail": "Request failed: TimeoutError",
+    "last_check": "2026-07-06 22:01 IRST",
+    "latency_ms": null,
+    "status_code": null,
     "dns_ms": 0
   },
   "_meta": {
-    "last_digest_utc": "2026-07-06T16:41:15.290088+00:00"
+    "last_digest_utc": "2026-07-06T18:31:24.342810+00:00"
   }
 }
