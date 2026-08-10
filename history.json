@@ -30087,5 +30087,52 @@
         "dns_ms": 0
       }
     }
+  },
+  {
+    "ts": "2026-08-10 09:30 IRST",
+    "results": {
+      "Landing (mahansco.ir)": {
+        "ok": true,
+        "detail": "OK 1633ms",
+        "latency_ms": 1633,
+        "status_code": 200,
+        "dns_ms": 308
+      },
+      "App SPA (app.mahansco.ir)": {
+        "ok": true,
+        "detail": "OK 1264ms",
+        "latency_ms": 1264,
+        "status_code": 200,
+        "dns_ms": 353
+      },
+      "App health API": {
+        "ok": true,
+        "detail": "OK but slow 3036ms",
+        "latency_ms": 3036,
+        "status_code": 200,
+        "dns_ms": 0
+      },
+      "GraphQL endpoint": {
+        "ok": true,
+        "detail": "OK 955ms",
+        "latency_ms": 955,
+        "status_code": 200,
+        "dns_ms": 0
+      },
+      "Marketing API": {
+        "ok": true,
+        "detail": "OK but slow 16143ms",
+        "latency_ms": 16143,
+        "status_code": 200,
+        "dns_ms": 0
+      },
+      "robots.txt canary": {
+        "ok": true,
+        "detail": "OK 1713ms",
+        "latency_ms": 1713,
+        "status_code": 200,
+        "dns_ms": 0
+      }
+    }
   }
 ]
