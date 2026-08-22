@@ -1,30 +1,4 @@
 {
-  "2026-07-19": {
-    "Landing (mahansco.ir)": {
-      "up": 17,
-      "total": 17
-    },
-    "App SPA (app.mahansco.ir)": {
-      "up": 17,
-      "total": 17
-    },
-    "App health API": {
-      "up": 17,
-      "total": 17
-    },
-    "GraphQL endpoint": {
-      "up": 17,
-      "total": 17
-    },
-    "Marketing API": {
-      "up": 17,
-      "total": 17
-    },
-    "robots.txt canary": {
-      "up": 17,
-      "total": 17
-    }
-  },
   "2026-07-20": {
     "Landing (mahansco.ir)": {
       "up": 12,
@@ -907,6 +881,32 @@
     "robots.txt canary": {
       "up": 47,
       "total": 50
+    }
+  },
+  "2026-08-23": {
+    "Landing (mahansco.ir)": {
+      "up": 1,
+      "total": 1
+    },
+    "App SPA (app.mahansco.ir)": {
+      "up": 1,
+      "total": 1
+    },
+    "App health API": {
+      "up": 1,
+      "total": 1
+    },
+    "GraphQL endpoint": {
+      "up": 1,
+      "total": 1
+    },
+    "Marketing API": {
+      "up": 1,
+      "total": 1
+    },
+    "robots.txt canary": {
+      "up": 1,
+      "total": 1
     }
   }
 }
