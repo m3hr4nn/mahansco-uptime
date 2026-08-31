@@ -7,6 +7,7 @@ installs: urllib, ssl, socket, json, datetime.
 """
 
 import datetime
+from concurrent.futures import ThreadPoolExecutor
 import html
 import json
 import os
@@ -248,6 +249,20 @@ def check(t):
     return True, f"OK {latency_ms}ms", latency_ms, status, dns_ms, dns_warning
 
 
+def probe_target(t):
+    """Run the external HTTP and optional TLS probes for one target."""
+    result = check(t)
+    cert = None
+    cert_error = None
+    if t.get("check_cert"):
+        host = urllib.parse.urlparse(t["url"]).hostname
+        try:
+            cert = cert_info(host)
+        except Exception as e:  # noqa: BLE001
+            cert_error = e
+    return result, cert, cert_error
+
+
 def derive_state(prev, ok):
     """Apply the configured consecutive-failure debounce to one probe result."""
     fail_streak = 0 if ok else prev.get("fail_streak", 0) + 1
@@ -284,9 +299,15 @@ def main():
     day_agg = rollup.setdefault(today, {})
     sample = {"ts": now, "results": {}}
 
-    for t in TARGETS["targets"]:
+    targets = TARGETS["targets"]
+    # Network probes are independent, so run them concurrently. State updates and
+    # notifications remain ordered below for deterministic transition handling.
+    with ThreadPoolExecutor(max_workers=min(8, len(targets))) as executor:
+        probes = list(executor.map(probe_target, targets))
+
+    for t, (probe, ci, cert_error) in zip(targets, probes):
         name = t["name"]
-        ok, detail, latency, status_code, dns_ms, dns_warning = check(t)
+        ok, detail, latency, status_code, dns_ms, dns_warning = probe
         prev = state.get(name, {"up": True, "fail_streak": 0})
 
         # 2-strikes debounce: absorb a single flaky probe from GitHub's network.
@@ -319,8 +340,7 @@ def main():
         # Cert-expiry warnings: fire once per threshold crossing, reset when it un-crosses.
         if t.get("check_cert"):
             host = urllib.parse.urlparse(t["url"]).hostname
-            try:
-                ci = cert_info(host)
+            if ci:
                 days = ci["days_left"]
                 new_state["cert_days_left"] = days
                 new_state["cert_not_after"] = ci["not_after"]
@@ -338,8 +358,8 @@ def main():
                         new_state[crossed_key] = True  # still crossed, stay quiet
                     else:
                         new_state[crossed_key] = False
-            except Exception as e:  # noqa: BLE001
-                print(f"cert check failed for {host}:", e)
+            elif cert_error:
+                print(f"cert check failed for {host}:", cert_error)
 
         state[name] = new_state
         sample["results"][name] = {"ok": ok, "confirmed_up": confirmed_up,

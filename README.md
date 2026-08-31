@@ -24,11 +24,11 @@ Per run, for each target in `targets.json`:
 
 | Endpoint | Expect | Body marker |
 |---|---|---|
-| `https://mahansco.ir/` | 200 | `System Online` (+ TLS, expected IP `185.208.173.17`) |
+| `https://mahansco.ir/` | 200 | `<title>Mahansco</title>` (+ TLS, expected IP `185.208.173.17`) |
 | `https://app.mahansco.ir/` | 200 | `<div id="root">` (+ TLS) |
 | `https://app.mahansco.ir/api/health/` | 200 | — (proves the backend answers, not just static files) |
 | `https://app.mahansco.ir/graphql/` | 200 | — |
-| `https://mahansco.ir/api/` | 200 | — |
+| `https://mahansco.ir/wp-json/` | 200 | — (WordPress API canary) |
 | `https://mahansco.ir/robots.txt` | 200 | — (cheap static-serving canary) |
 
 ## Alerting behaviour
