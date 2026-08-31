@@ -1,12 +1,14 @@
 {
   "Landing (mahansco.ir)": {
-    "up": false,
-    "fail_streak": 13,
-    "last_detail": "Resolves to 185.8.174.78, expected 185.208.173.17 (possible DNS change)",
-    "last_check": "2026-08-31 09:23 IRST",
-    "latency_ms": null,
-    "status_code": null,
-    "dns_ms": 673,
+    "up": true,
+    "fail_streak": 0,
+    "last_detail": "OK 1807ms",
+    "last_check": "2026-08-31 15:13 IRST",
+    "latency_ms": 1807,
+    "status_code": 200,
+    "dns_ms": 342,
+    "dns_warning": "Resolves to 185.8.174.78, expected 185.208.173.17",
+    "dns_mismatch": true,
     "cert_days_left": 53,
     "cert_not_after": "2026-10-24",
     "cert_not_before": "2026-07-26",
@@ -18,11 +20,13 @@
   "App SPA (app.mahansco.ir)": {
     "up": true,
     "fail_streak": 0,
-    "last_detail": "OK 1002ms",
-    "last_check": "2026-08-31 09:23 IRST",
-    "latency_ms": 1002,
+    "last_detail": "OK 1038ms",
+    "last_check": "2026-08-31 15:13 IRST",
+    "latency_ms": 1038,
     "status_code": 200,
-    "dns_ms": 418,
+    "dns_ms": 404,
+    "dns_warning": null,
+    "dns_mismatch": false,
     "cert_days_left": 53,
     "cert_not_after": "2026-10-24",
     "cert_not_before": "2026-07-26",
@@ -34,40 +38,49 @@
   "App health API": {
     "up": true,
     "fail_streak": 0,
-    "last_detail": "OK 693ms",
-    "last_check": "2026-08-31 09:23 IRST",
-    "latency_ms": 693,
+    "last_detail": "OK 1039ms",
+    "last_check": "2026-08-31 15:13 IRST",
+    "latency_ms": 1039,
     "status_code": 200,
-    "dns_ms": 0
+    "dns_ms": 404,
+    "dns_warning": null,
+    "dns_mismatch": false
   },
   "GraphQL endpoint": {
     "up": true,
     "fail_streak": 0,
-    "last_detail": "OK 1037ms",
-    "last_check": "2026-08-31 09:23 IRST",
-    "latency_ms": 1037,
+    "last_detail": "OK 1038ms",
+    "last_check": "2026-08-31 15:13 IRST",
+    "latency_ms": 1038,
     "status_code": 200,
-    "dns_ms": 0
+    "dns_ms": 404,
+    "dns_warning": null,
+    "dns_mismatch": false
   },
   "Marketing API": {
-    "up": false,
-    "fail_streak": 12,
-    "last_detail": "HTTP 404 (expected 200)",
-    "last_check": "2026-08-31 09:23 IRST",
-    "latency_ms": 1359,
-    "status_code": 404,
-    "dns_ms": 0
+    "up": true,
+    "fail_streak": 0,
+    "last_detail": "OK 2166ms",
+    "last_check": "2026-08-31 15:13 IRST",
+    "latency_ms": 2166,
+    "status_code": 200,
+    "dns_ms": 341,
+    "dns_warning": null,
+    "dns_mismatch": false
   },
   "robots.txt canary": {
     "up": true,
     "fail_streak": 0,
-    "last_detail": "OK 854ms",
-    "last_check": "2026-08-31 09:23 IRST",
-    "latency_ms": 854,
+    "last_detail": "OK 1320ms",
+    "last_check": "2026-08-31 15:13 IRST",
+    "latency_ms": 1320,
     "status_code": 200,
-    "dns_ms": 0
+    "dns_ms": 341,
+    "dns_warning": null,
+    "dns_mismatch": false
   },
   "_meta": {
-    "last_digest_utc": "2026-08-31T05:53:15.063266+00:00"
+    "last_digest_utc": "2026-08-31T11:43:35.372728+00:00",
+    "pending_notifications": []
   }
 }
