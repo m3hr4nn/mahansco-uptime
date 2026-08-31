@@ -1,8 +1,8 @@
 # mahansco-uptime
 
-A free, **Tier-1** (blackbox / endpoint-only) uptime monitor for Mahansco's public web
+A free, **Tier-0** (blackbox / endpoint-only) uptime monitor for Mahansco's public web
 surface. It runs on **GitHub Actions** (not on the monitored host — a monitor must never share
-fate with what it watches), issues HTTPS `GET`s to the public endpoints every 15 minutes, and
+fate with what it watches), issues HTTPS `GET`s to the public endpoints every 5 minutes, and
 posts to a **private Telegram channel** on state changes only. No paid SaaS, no servers, no cost.
 
 > Pattern mirrors [`m3hr4nn/googleipmonitor`](https://github.com/m3hr4nn/googleipmonitor):
@@ -16,7 +16,8 @@ Per run, for each target in `targets.json`:
 - **HTTP status** equals the expected code.
 - **Latency** in ms — flagged "slow" above `latency_warn_ms` (still counts as UP).
 - **Body marker** — response contains the configured string and is non-empty.
-- **DNS** resolves; when `expected_ip` is set, the resolved IP must match (DNS-change / hijack catch).
+- **DNS** resolves; when `expected_ip` is set, a mismatch raises a warning but does not make the
+  endpoint unreachable (DNS-change / hijack visibility without false outages).
 - **TLS cert days-to-expiry** for `check_cert` targets — warns at each `cert_warn_days` threshold.
 
 ### Monitored targets
@@ -37,8 +38,9 @@ Per run, for each target in `targets.json`:
 - **State changes only** — never "still up" spam:
   - 🔴 **DOWN** — target newly confirmed down
   - 🟢 **RECOVERED** — previously-down target passing again
+  - 🟡 **DNS warning** — configured IP no longer matches (reachability is still evaluated)
   - 🟡 **TLS cert** — once, when a cert crosses a warn threshold (silent until it un-crosses)
-- 📊 **Daily digest** — once per day at `daily_digest_hour_utc`, a single summary with per-target
+- 📊 **Hourly digest** — once per configured `digest_every_hours`, a single summary with per-target
   status, latency, and an X/Y healthy count. The only heartbeat message.
 
 ## Files
@@ -48,8 +50,8 @@ Per run, for each target in `targets.json`:
 | `monitor.py` | The checker. Python 3.12, **standard library only** (no `pip install`). |
 | `targets.json` | All targets + thresholds. Add/remove endpoints here — no code change. |
 | `state.json` | Last-known state per target. **Auto-committed by the workflow** (don't hand-edit). |
-| `history.json` | Rolling samples (~2880 ≈ 30 days at 15-min cadence) for digest + status page. |
-| `.github/workflows/monitor.yml` | Cron `*/15 * * * *` + manual run; runs `monitor.py`, commits state back. |
+| `history.json` | Rolling samples (~2880 ≈ 10 days at 5-min cadence) for digest + status page. |
+| `.github/workflows/monitor.yml` | Cron `*/5 * * * *` + manual run; runs `monitor.py`, commits state back. |
 | `docs/index.html` | Optional GitHub Pages status page rendered client-side from `history.json`. |
 
 State is **committed back to the repo** after each run (commit message ends in `[skip ci]` so the
@@ -93,7 +95,7 @@ Append an object to the `targets` array in `targets.json`:
 
 ## Limits (honest tradeoffs)
 
-- **Resolution** ~15 min (plus possible GitHub cron delay) — not real-time. Fine for Tier 1.
+- **Resolution** ~5 min (plus possible GitHub cron delay) — not real-time. Fine for Tier 0.
 - **Vantage point** — GitHub runners sit outside Iran, so this measures *world reachability* of the
   CDN-fronted site; the 2-strikes rule suppresses transient international-routing noise.
 - **No internal visibility** — disk, DB, Redis, backups, containers are invisible by design. Those
@@ -102,7 +104,7 @@ Append an object to the `targets` array in `targets.json`:
 ## Run locally
 
 ```bash
-TELEGRAM_BOT_TOKEN=… TELEGRAM_CHAT_ID=… python monitor.py
+TELEGRAM_BOT_TOKEN=… TELEGRAM_CHAT_ID=… python3 monitor.py
 ```
 
 Requires only Python 3.12+. No dependencies to install.

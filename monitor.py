@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tier-1 blackbox uptime monitor -> private Telegram channel.
+"""Tier-0 blackbox uptime monitor -> private Telegram channel.
 
 State-change alerting only (alerts on UP<->DOWN transitions and cert-threshold
 crossings, plus one daily digest). Python standard library only -- no pip
@@ -7,17 +7,62 @@ installs: urllib, ssl, socket, json, datetime.
 """
 
 import datetime
+import html
 import json
 import os
 import socket
 import ssl
+import tempfile
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
-TARGETS = json.load(open(os.path.join(ROOT, "targets.json"), encoding="utf-8"))
+
+
+def validate_config(config):
+    """Fail early with a useful error when the monitor configuration is invalid."""
+    if not isinstance(config, dict):
+        raise ValueError("targets.json must contain a JSON object")
+    settings = config.get("settings")
+    targets = config.get("targets")
+    if not isinstance(settings, dict) or not isinstance(targets, list) or not targets:
+        raise ValueError("targets.json must contain non-empty settings and targets")
+
+    positive_settings = ("timeout_seconds", "latency_warn_ms", "failures_before_down",
+                         "digest_every_hours")
+    for key in positive_settings:
+        if not isinstance(settings.get(key), (int, float)) or settings[key] <= 0:
+            raise ValueError(f"settings.{key} must be a positive number")
+    if not isinstance(settings.get("cert_warn_days"), list):
+        raise ValueError("settings.cert_warn_days must be a list")
+    if not isinstance(settings.get("digest_every_hours", 24), (int, float)):
+        raise ValueError("settings.digest_every_hours must be a number")
+
+    names = set()
+    for index, target in enumerate(targets):
+        if not isinstance(target, dict):
+            raise ValueError(f"targets[{index}] must be an object")
+        name = target.get("name")
+        url = target.get("url")
+        parsed = urllib.parse.urlparse(url) if isinstance(url, str) else None
+        if not isinstance(name, str) or not name.strip() or name in names:
+            raise ValueError(f"targets[{index}].name must be non-empty and unique")
+        if parsed is None or parsed.scheme != "https" or not parsed.hostname:
+            raise ValueError(f"targets[{index}].url must be an HTTPS URL with a hostname")
+        if not isinstance(target.get("expect_status"), int) or not 100 <= target["expect_status"] <= 599:
+            raise ValueError(f"targets[{index}].expect_status must be an HTTP status code")
+        if "must_contain" in target and not isinstance(target["must_contain"], str):
+            raise ValueError(f"targets[{index}].must_contain must be a string")
+        if "expected_ip" in target and not isinstance(target["expected_ip"], str):
+            raise ValueError(f"targets[{index}].expected_ip must be a string")
+        names.add(name)
+
+
+with open(os.path.join(ROOT, "targets.json"), encoding="utf-8") as targets_file:
+    TARGETS = json.load(targets_file)
+validate_config(TARGETS)
 SETTINGS = TARGETS["settings"]
 
 STATE_PATH = os.path.join(ROOT, "state.json")
@@ -46,9 +91,64 @@ def fmt_local(dt):
 
 def load_json(path, default):
     try:
-        return json.load(open(path, encoding="utf-8"))
+        with open(path, encoding="utf-8") as data_file:
+            return json.load(data_file)
     except (FileNotFoundError, json.JSONDecodeError):
         return default
+
+
+def dump_json_atomic(path, value):
+    """Write JSON without leaving a partially-written state file behind."""
+    directory = os.path.dirname(path) or "."
+    fd, temporary_path = tempfile.mkstemp(prefix=".monitor-", suffix=".tmp", dir=directory)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as data_file:
+            json.dump(value, data_file, indent=2, ensure_ascii=False)
+            data_file.write("\n")
+            data_file.flush()
+            os.fsync(data_file.fileno())
+        os.replace(temporary_path, path)
+    finally:
+        if os.path.exists(temporary_path):
+            os.unlink(temporary_path)
+
+
+def telegram_escape(value):
+    """Escape data interpolated into Telegram HTML messages."""
+    return html.escape(str(value), quote=True)
+
+
+def queue_notification(meta, text, kind="alert", advance_digest_clock=False):
+    pending = meta.setdefault("pending_notifications", [])
+    if not isinstance(pending, list):
+        pending = []
+        meta["pending_notifications"] = pending
+    pending.append({
+        "kind": kind,
+        "text": text,
+        "advance_digest_clock": advance_digest_clock,
+        "queued_at": utcnow().isoformat(),
+    })
+
+
+def flush_notifications(meta):
+    """Deliver queued messages in order, retaining anything Telegram rejects."""
+    pending = meta.setdefault("pending_notifications", [])
+    if not isinstance(pending, list):
+        pending = []
+        meta["pending_notifications"] = pending
+    remaining = []
+    for index, event in enumerate(pending):
+        if isinstance(event, str):  # tolerate an older/manual state format
+            event = {"kind": "alert", "text": event}
+        if not isinstance(event, dict) or not event.get("text"):
+            continue
+        if not telegram(event["text"]):
+            remaining.extend(pending[index:])
+            break
+        if event.get("kind") == "digest" and event.get("advance_digest_clock"):
+            meta["last_digest_utc"] = event.get("digest_utc", utcnow().isoformat())
+    meta["pending_notifications"] = remaining
 
 
 def telegram(text):
@@ -62,12 +162,14 @@ def telegram(text):
         "disable_web_page_preview": "true",
     }).encode()
     try:
-        urllib.request.urlopen(urllib.request.Request(url, data=data), timeout=15).read()
+        with urllib.request.urlopen(urllib.request.Request(url, data=data), timeout=15) as response:
+            response.read()
         return True
     except urllib.error.HTTPError as e:
         # Telegram returns a JSON body explaining the rejection (bad chat id,
         # bot not an admin, wrong token, etc.) -- surface it.
         print(f"Telegram send failed: HTTP {e.code} {e.read().decode('utf-8', 'ignore')}")
+        e.close()
     except Exception as e:  # noqa: BLE001
         print("Telegram send failed:", e)
     return False
@@ -106,9 +208,11 @@ def resolve_ip(host):
 
 
 def check(t):
-    """Return (ok, detail, latency_ms, status_code, dns_ms) for one target.
+    """Return (ok, detail, latency_ms, status_code, dns_ms, dns_warning).
     latency_ms/status_code are None when the request never completed; dns_ms is
-    the DNS-resolution time (measured even on failure so slow DNS is visible)."""
+    the DNS-resolution time (measured even on failure so slow DNS is visible).
+    An expected-IP mismatch is advisory: public reachability remains the primary
+    Tier-0 signal, and legitimate DNS migrations must not look like outages."""
     host = urllib.parse.urlparse(t["url"]).hostname
 
     # DNS / expected IP -- timed separately so slow resolution shows up.
@@ -116,30 +220,40 @@ def check(t):
     ip = resolve_ip(host)
     dns_ms = int((time.monotonic() - dns_start) * 1000)
     if ip is None:
-        return False, "DNS resolution failed", None, None, dns_ms
+        return False, "DNS resolution failed", None, None, dns_ms, None
+    dns_warning = None
     if t.get("expected_ip") and ip != t["expected_ip"]:
-        return False, f"Resolves to {ip}, expected {t['expected_ip']} (possible DNS change)", None, None, dns_ms
+        dns_warning = f"Resolves to {ip}, expected {t['expected_ip']}"
 
     # HTTP GET
     start = time.monotonic()
     try:
         req = urllib.request.Request(t["url"], headers={"User-Agent": "mahansco-uptime/1.0"})
-        resp = urllib.request.urlopen(req, timeout=SETTINGS["timeout_seconds"])
-        body = resp.read(200_000).decode("utf-8", "ignore")
-        status = resp.getcode()
+        with urllib.request.urlopen(req, timeout=SETTINGS["timeout_seconds"]) as resp:
+            body = resp.read(200_000).decode("utf-8", "ignore")
+            status = resp.getcode()
     except urllib.error.HTTPError as e:
         status, body = e.code, ""
+        e.close()
     except Exception as e:  # noqa: BLE001
-        return False, f"Request failed: {type(e).__name__}", None, None, dns_ms
+        return False, f"Request failed: {type(e).__name__}", None, None, dns_ms, dns_warning
     latency_ms = int((time.monotonic() - start) * 1000)
 
     if status != t["expect_status"]:
-        return False, f"HTTP {status} (expected {t['expect_status']})", latency_ms, status, dns_ms
+        return False, f"HTTP {status} (expected {t['expect_status']})", latency_ms, status, dns_ms, dns_warning
     if t.get("must_contain") and t["must_contain"] not in body:
-        return False, f"Body missing marker '{t['must_contain']}'", latency_ms, status, dns_ms
+        return False, f"Body missing marker '{t['must_contain']}'", latency_ms, status, dns_ms, dns_warning
     if latency_ms > SETTINGS["latency_warn_ms"]:
-        return True, f"OK but slow {latency_ms}ms", latency_ms, status, dns_ms
-    return True, f"OK {latency_ms}ms", latency_ms, status, dns_ms
+        return True, f"OK but slow {latency_ms}ms", latency_ms, status, dns_ms, dns_warning
+    return True, f"OK {latency_ms}ms", latency_ms, status, dns_ms, dns_warning
+
+
+def derive_state(prev, ok):
+    """Apply the configured consecutive-failure debounce to one probe result."""
+    fail_streak = 0 if ok else prev.get("fail_streak", 0) + 1
+    is_down = fail_streak >= SETTINGS["failures_before_down"]
+    was_down = not prev.get("up", True)
+    return fail_streak, is_down, was_down
 
 
 def main():
@@ -153,6 +267,17 @@ def main():
     state = load_json(STATE_PATH, {})
     history = load_json(HISTORY_PATH, [])
     rollup = load_json(ROLLUP_PATH, {})
+    if not isinstance(state, dict):
+        state = {}
+    if not isinstance(history, list):
+        history = []
+    if not isinstance(rollup, dict):
+        rollup = {}
+    meta = state.get("_meta", {})
+    if not isinstance(meta, dict):
+        meta = {}
+    state["_meta"] = meta
+    flush_notifications(meta)
     nowdt = utcnow()
     now = fmt_local(nowdt)
     today = nowdt.astimezone(TEHRAN).strftime("%Y-%m-%d")
@@ -161,23 +286,35 @@ def main():
 
     for t in TARGETS["targets"]:
         name = t["name"]
-        ok, detail, latency, status_code, dns_ms = check(t)
+        ok, detail, latency, status_code, dns_ms, dns_warning = check(t)
         prev = state.get(name, {"up": True, "fail_streak": 0})
 
         # 2-strikes debounce: absorb a single flaky probe from GitHub's network.
-        fail_streak = 0 if ok else prev.get("fail_streak", 0) + 1
-        is_down = fail_streak >= SETTINGS["failures_before_down"]
-        was_down = not prev.get("up", True)
+        fail_streak, is_down, was_down = derive_state(prev, ok)
+        confirmed_up = not is_down
 
         # Alert only on confirmed transitions -- never "still up".
         if is_down and not was_down:
-            telegram(f"\U0001F534 <b>DOWN</b> — {name}\n{detail}\n<i>{now}</i>")
+            queue_notification(meta, f"\U0001F534 <b>DOWN</b> — {telegram_escape(name)}\n"
+                                      f"{telegram_escape(detail)}\n<i>{telegram_escape(now)}</i>")
         elif was_down and ok:
-            telegram(f"\U0001F7E2 <b>RECOVERED</b> — {name}\n{detail}\n<i>{now}</i>")
+            queue_notification(meta, f"\U0001F7E2 <b>RECOVERED</b> — {telegram_escape(name)}\n"
+                                      f"{telegram_escape(detail)}\n<i>{telegram_escape(now)}</i>")
 
-        new_state = {"up": not is_down, "fail_streak": fail_streak,
+        dns_mismatch = bool(dns_warning)
+        previous_dns_mismatch = bool(prev.get("dns_mismatch"))
+        if dns_mismatch and not previous_dns_mismatch:
+            queue_notification(meta, f"\U0001F7E1 <b>DNS warning</b> — {telegram_escape(name)}\n"
+                                      f"{telegram_escape(dns_warning)}\n<i>{telegram_escape(now)}</i>")
+        elif previous_dns_mismatch and not dns_mismatch:
+            queue_notification(meta, f"\U0001F7E2 <b>DNS recovered</b> — {telegram_escape(name)}\n"
+                                      f"DNS now matches the configured address.\n"
+                                      f"<i>{telegram_escape(now)}</i>")
+
+        new_state = {"up": confirmed_up, "fail_streak": fail_streak,
                      "last_detail": detail, "last_check": now,
-                     "latency_ms": latency, "status_code": status_code, "dns_ms": dns_ms}
+                     "latency_ms": latency, "status_code": status_code, "dns_ms": dns_ms,
+                     "dns_warning": dns_warning, "dns_mismatch": dns_mismatch}
 
         # Cert-expiry warnings: fire once per threshold crossing, reset when it un-crosses.
         if t.get("check_cert"):
@@ -192,8 +329,10 @@ def main():
                 for thr in SETTINGS["cert_warn_days"]:
                     crossed_key = f"cert_warned_{thr}"
                     if days <= thr and not prev.get(crossed_key):
-                        telegram(f"\U0001F7E1 <b>TLS cert</b> for {host} expires in "
-                                 f"<b>{days} days</b> (on {ci['not_after']}, issuer {ci['issuer']})")
+                        queue_notification(meta, f"\U0001F7E1 <b>TLS cert</b> for "
+                                             f"{telegram_escape(host)} expires in "
+                                             f"<b>{days} days</b> (on {telegram_escape(ci['not_after'])}, "
+                                             f"issuer {telegram_escape(ci['issuer'])})")
                         new_state[crossed_key] = True
                     elif days <= thr:
                         new_state[crossed_key] = True  # still crossed, stay quiet
@@ -203,14 +342,16 @@ def main():
                 print(f"cert check failed for {host}:", e)
 
         state[name] = new_state
-        sample["results"][name] = {"ok": ok, "detail": detail, "latency_ms": latency,
-                                   "status_code": status_code, "dns_ms": dns_ms}
+        sample["results"][name] = {"ok": ok, "confirmed_up": confirmed_up,
+                                   "detail": detail, "latency_ms": latency,
+                                   "status_code": status_code, "dns_ms": dns_ms,
+                                   "dns_warning": dns_warning}
 
         # Daily uptime rollup: compact per-day up/total tallies back the 30-day
         # window on the status page without bloating history.json.
         agg = day_agg.setdefault(name, {"up": 0, "total": 0})
         agg["total"] += 1
-        if ok:
+        if confirmed_up:
             agg["up"] += 1
 
     # Rolling history: ~10 days at the 5-min cadence (2880 samples) -- enough for the
@@ -227,7 +368,6 @@ def main():
     # so an elapsed-time gate is the only reliable way to get a roughly-hourly cadence
     # off the 5-min run schedule. Also sendable on demand via the FORCE_DIGEST input.
     every = SETTINGS.get("digest_every_hours", 24)
-    meta = state.get("_meta", {})
     last_digest = meta.get("last_digest_utc")
     due = True
     if last_digest:
@@ -237,25 +377,27 @@ def main():
         except ValueError:
             due = True
     force_digest = os.environ.get("FORCE_DIGEST", "").lower() == "true"
-    if force_digest or due:
-        up = sum(1 for r in sample["results"].values() if r["ok"])
+    digest_pending = any(isinstance(event, dict) and event.get("kind") == "digest"
+                         for event in meta.get("pending_notifications", []))
+    if (force_digest or due) and not digest_pending:
+        up = sum(1 for r in sample["results"].values() if r["confirmed_up"])
         total = len(sample["results"])
         label = "Hourly digest" if every == 1 else "Status digest"
         lines = [f"\U0001F4CA <b>{label}</b> — {now}", f"{up}/{total} endpoints healthy", ""]
         for n, r in sample["results"].items():
-            mark = "\U0001F7E2" if r["ok"] else "\U0001F534"
+            mark = "\U0001F7E2" if r["confirmed_up"] else "\U0001F534"
             lat = f" · {r['latency_ms']}ms" if r["latency_ms"] else ""
-            lines.append(f"{mark} {n}{lat}")
-        sent = telegram("\n".join(lines))
-        # Only the scheduled (due) heartbeat advances the clock; an on-demand
-        # FORCE_DIGEST send must not reset the hourly cadence.
-        if due and sent:
-            meta["last_digest_utc"] = nowdt.isoformat()
-    state["_meta"] = meta
+            lines.append(f"{mark} {telegram_escape(n)}{lat}")
+        queue_notification(meta, "\n".join(lines), kind="digest", advance_digest_clock=due)
+        meta["pending_notifications"][-1]["digest_utc"] = nowdt.isoformat()
 
-    json.dump(state, open(STATE_PATH, "w", encoding="utf-8"), indent=2, ensure_ascii=False)
-    json.dump(history, open(HISTORY_PATH, "w", encoding="utf-8"), indent=2, ensure_ascii=False)
-    json.dump(rollup, open(ROLLUP_PATH, "w", encoding="utf-8"), indent=2, ensure_ascii=False)
+    # New transition, DNS, certificate, and digest events are retried before state
+    # is persisted. Failed events remain in _meta.pending_notifications for the next run.
+    flush_notifications(meta)
+
+    dump_json_atomic(STATE_PATH, state)
+    dump_json_atomic(HISTORY_PATH, history)
+    dump_json_atomic(ROLLUP_PATH, rollup)
 
 
 if __name__ == "__main__":

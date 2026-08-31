@@ -25,6 +25,7 @@
     .badge.ok { background: rgba(31,157,85,.15); color: #56d364; }
     .badge.bad { background: rgba(227,52,47,.15); color: #ff7b72; }
     .meta { color: var(--muted); font-size: 12px; margin-top: 6px; }
+    .warn { color: #f0c674; }
     .meta code { color: var(--fg); background: #21262d; padding: 1px 5px; border-radius: 4px; font-size: 11px; }
     .uptimes { display: flex; gap: 16px; margin-top: 8px; font-size: 12px; color: var(--muted); }
     .uptimes b { color: var(--fg); font-variant-numeric: tabular-nums; }
@@ -72,6 +73,18 @@
     const SLOW_MS = 3000;     // mirrors latency_warn_ms: "up but slow" threshold
     const DAY = 864e5, WEEK = 7 * DAY;
 
+    function esc(value) {
+      return String(value ?? "").replace(/[&<>"']/g, c => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;"
+      })[c]);
+    }
+
+    function confirmedUp(result) {
+      // Older retained samples only have raw `ok`; new samples include the
+      // debounced status explicitly.
+      return result.confirmed_up === undefined ? result.ok : result.confirmed_up;
+    }
+
     function fetchJson(path) {
       return fetch(path + "?_=" + Date.now())
         .then(r => r.ok ? r.json() : null)
@@ -117,7 +130,7 @@
     function uptimeWindow(history, name, ms) {
       const cutoff = Date.now() - ms;
       const s = history.filter(h => h.results[name] && parseTs(h.ts).getTime() >= cutoff);
-      const ok = s.filter(h => h.results[name].ok).length;
+      const ok = s.filter(h => confirmedUp(h.results[name])).length;
       return pct(ok, s.length);
     }
 
@@ -144,7 +157,7 @@
       for (const h of history) {
         const r = h.results[name];
         if (!r) continue;
-        if (r.ok) flush(); else run.push(h);
+        if (confirmedUp(r)) flush(); else run.push(h);
       }
       if (run.length >= MIN_FAILS) {
         const start = parseTs(run[0].ts), end = parseTs(run[run.length - 1].ts);
@@ -163,7 +176,7 @@
       const latest = history[history.length - 1];
       const names = Object.keys(latest.results);
 
-      const upNow = names.filter(n => latest.results[n].ok).length;
+      const upNow = names.filter(n => confirmedUp(latest.results[n])).length;
       const allOk = upNow === names.length;
       document.getElementById("summary").innerHTML =
         `<span class="dot" style="background:${allOk ? 'var(--ok)' : 'var(--bad)'}"></span> ` +
@@ -185,10 +198,10 @@
         const maxLat = Math.max(1, ...lat);
         const bars = samples.map(s => {
           const r = s.results[name];
-          const cls = !r.ok ? "bad" : (r.latency_ms > SLOW_MS ? "slow" : "ok");
+          const cls = !confirmedUp(r) ? "bad" : (!r.ok ? "slow" : (r.latency_ms > SLOW_MS ? "slow" : "ok"));
           const h = r.latency_ms != null ? Math.max(10, Math.round(r.latency_ms / maxLat * 100)) : 100;
           const tip = `${s.ts}: ${r.detail}` + (r.status_code ? ` (HTTP ${r.status_code})` : "");
-          return `<div class="bar ${cls}" style="height:${h}%" title="${tip}"></div>`;
+          return `<div class="bar ${cls}" style="height:${h}%" title="${esc(tip)}"></div>`;
         }).join("");
 
         const u24 = uptimeWindow(history, name, DAY);
@@ -199,28 +212,29 @@
         const status = cur.status_code || st.status_code;
         const curLat = cur.latency_ms != null ? cur.latency_ms : st.latency_ms;
         const dns = cur.dns_ms != null ? cur.dns_ms : st.dns_ms;
-        const detailBits = [cur.detail];
-        if (status) detailBits.push(`<code>HTTP ${status}</code>`);
-        if (dns != null) detailBits.push(`DNS ${dns}ms`);
+        const detailBits = [esc(cur.detail)];
+        if (status) detailBits.push(`<code>HTTP ${esc(status)}</code>`);
+        if (dns != null) detailBits.push(`DNS ${esc(dns)}ms`);
+        if (cur.dns_warning) detailBits.push(`<span class="warn">${esc(cur.dns_warning)}</span>`);
 
         // cert panel
         let certHtml = "";
         if (st.cert_days_left != null) {
           const d = st.cert_days_left;
           const cls = d <= 7 ? "bad" : (d <= 21 ? "warn" : "");
-          const issuer = st.cert_issuer ? ` · ${st.cert_issuer}` : "";
-          const until = st.cert_not_after ? ` (expires ${st.cert_not_after})` : "";
-          certHtml = `<div class="cert ${cls}">🔒 TLS cert: <b>${d} days</b> left${until}${issuer}</div>`;
+          const issuer = st.cert_issuer ? ` · ${esc(st.cert_issuer)}` : "";
+          const until = st.cert_not_after ? ` (expires ${esc(st.cert_not_after)})` : "";
+          certHtml = `<div class="cert ${cls}">🔒 TLS cert: <b>${esc(d)} days</b> left${until}${issuer}</div>`;
         }
 
         const card = document.createElement("div");
         card.className = "card";
         card.innerHTML = `
           <div class="row">
-            <span class="name">${name}</span>
-            <span class="badge ${cur.ok ? 'ok' : 'bad'}">${cur.ok ? 'UP' : 'DOWN'}</span>
+            <span class="name">${esc(name)}</span>
+            <span class="badge ${confirmedUp(cur) ? 'ok' : 'bad'}">${confirmedUp(cur) ? 'UP' : 'DOWN'}</span>
           </div>
-          <div class="meta">${detailBits.join(" · ")}${st.last_check ? ` · checked ${st.last_check}` : ""}</div>
+          <div class="meta">${detailBits.join(" · ")}${st.last_check ? ` · checked ${esc(st.last_check)}` : ""}</div>
           <div class="uptimes">
             <span>24h <b>${fmtPct(u24)}</b></span>
             <span>7d <b>${fmtPct(u7)}</b></span>
@@ -260,7 +274,7 @@
           const dur = humanize(Math.max(60000, i.end.getTime() - i.start.getTime()));
           const tag = i.ongoing ? '<span class="ongoing">ongoing</span>' : `<span class="dur">${dur}</span>`;
           return `<div class="incident">
-            <span><b>${i.name}</b> <span class="when">${fmtLocal(i.start)}</span></span>
+            <span><b>${esc(i.name)}</b> <span class="when">${esc(fmtLocal(i.start))}</span></span>
             ${tag}
           </div>`;
         }).join("");
