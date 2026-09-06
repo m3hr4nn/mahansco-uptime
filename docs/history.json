@@ -62705,5 +62705,64 @@
         "dns_warning": null
       }
     }
+  },
+  {
+    "ts": "2026-09-06 21:40 IRST",
+    "results": {
+      "Landing (mahansco.ir)": {
+        "ok": true,
+        "confirmed_up": true,
+        "detail": "OK 1471ms",
+        "latency_ms": 1471,
+        "status_code": 200,
+        "dns_ms": 425,
+        "dns_warning": "Resolves to 185.8.174.78, expected 185.208.173.17"
+      },
+      "App SPA (app.mahansco.ir)": {
+        "ok": true,
+        "confirmed_up": true,
+        "detail": "OK 1218ms",
+        "latency_ms": 1218,
+        "status_code": 200,
+        "dns_ms": 346,
+        "dns_warning": null
+      },
+      "App health API": {
+        "ok": true,
+        "confirmed_up": true,
+        "detail": "OK 1225ms",
+        "latency_ms": 1225,
+        "status_code": 200,
+        "dns_ms": 345,
+        "dns_warning": null
+      },
+      "GraphQL endpoint": {
+        "ok": true,
+        "confirmed_up": true,
+        "detail": "OK 1850ms",
+        "latency_ms": 1850,
+        "status_code": 200,
+        "dns_ms": 344,
+        "dns_warning": null
+      },
+      "Marketing API": {
+        "ok": true,
+        "confirmed_up": true,
+        "detail": "OK 1682ms",
+        "latency_ms": 1682,
+        "status_code": 200,
+        "dns_ms": 424,
+        "dns_warning": null
+      },
+      "robots.txt canary": {
+        "ok": true,
+        "confirmed_up": true,
+        "detail": "OK 1569ms",
+        "latency_ms": 1569,
+        "status_code": 200,
+        "dns_ms": 424,
+        "dns_warning": null
+      }
+    }
   }
 ]
