@@ -5,9 +5,6 @@ from pathlib import Path
 from unittest import mock
 
 
-os.environ.setdefault("TELEGRAM_BOT_TOKEN", "test-token")
-os.environ.setdefault("TELEGRAM_CHAT_ID", "test-chat")
-
 import monitor
 
 
@@ -27,6 +24,9 @@ class FakeResponse:
 
     def getcode(self):
         return self.status
+
+    def geturl(self):
+        return "https://example.com/"
 
 
 class MonitorTests(unittest.TestCase):
@@ -52,13 +52,14 @@ class MonitorTests(unittest.TestCase):
             "name": "Landing",
             "url": "https://example.com/",
             "expect_status": 200,
-            "expected_ip": "192.0.2.1",
+            "expected_ips": ["1.1.1.1"],
         }
-        with mock.patch.object(monitor, "resolve_ip", return_value="198.51.100.2"), \
-                mock.patch.object(monitor.urllib.request, "urlopen", return_value=FakeResponse()):
+        with mock.patch.object(monitor, "resolve_ips", return_value=["8.8.8.8"]), \
+                mock.patch.object(monitor.urllib.request, "build_opener") as opener:
+            opener.return_value.open.return_value = FakeResponse()
             result = monitor.check(target)
         self.assertTrue(result[0])
-        self.assertIn("198.51.100.2", result[5])
+        self.assertIn("configured address set", result[5])
 
     def test_failed_notification_is_retained_and_retried(self):
         meta = {}
@@ -88,7 +89,7 @@ class MonitorTests(unittest.TestCase):
                 "expect_status": 200,
                 "check_cert": False,
             }
-            fake_result = (True, "OK 12ms", 12, 200, 3, "Resolves to 198.51.100.2, expected 192.0.2.1")
+            fake_result = (True, "OK 12ms", 12, 200, 3, "DNS addresses differ from the configured address set", "https://example.com/")
             with mock.patch.object(monitor, "STATE_PATH", str(state_path)), \
                     mock.patch.object(monitor, "HISTORY_PATH", str(history_path)), \
                     mock.patch.object(monitor, "ROLLUP_PATH", str(rollup_path)), \

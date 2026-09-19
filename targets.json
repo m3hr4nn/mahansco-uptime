@@ -4,14 +4,24 @@
     "latency_warn_ms": 3000,
     "failures_before_down": 2,
     "cert_warn_days": [21, 7, 1],
-    "digest_every_hours": 1
+    "digest_every_hours": 1,
+    "expected_interval_seconds": 300,
+    "delayed_after_seconds": 600,
+    "stale_after_seconds": 1200,
+    "refresh_seconds": 60,
+    "retention_days": 35,
+    "minimum_coverage": 0.9,
+    "notification_max_count": 50,
+    "notification_max_age_hours": 48,
+    "cert_failure_threshold": 3
   },
   "targets": [
-    { "name": "Landing (mahansco.ir)",     "url": "https://mahansco.ir/",                "expect_status": 200, "must_contain": "<title>Mahansco</title>", "check_cert": true,  "expected_ip": "185.208.173.17" },
+    { "name": "Landing (mahansco.ir)",     "url": "https://mahansco.ir/",                "expect_status": 200, "must_contain": "<title>Mahansco</title>", "check_cert": true },
     { "name": "App SPA (app.mahansco.ir)",  "url": "https://app.mahansco.ir/",            "expect_status": 200, "must_contain": "<div id=\"root\">", "check_cert": true },
-    { "name": "App health API",             "url": "https://app.mahansco.ir/api/health/", "expect_status": 200, "must_contain": "", "check_cert": false },
-    { "name": "GraphQL endpoint",           "url": "https://app.mahansco.ir/graphql/",    "expect_status": 200, "must_contain": "", "check_cert": false },
-    { "name": "Marketing API",              "url": "https://mahansco.ir/wp-json/",         "expect_status": 200, "must_contain": "", "check_cert": false },
-    { "name": "robots.txt canary",          "url": "https://mahansco.ir/robots.txt",      "expect_status": 200, "must_contain": "", "check_cert": false }
+    { "name": "App health API", "url": "https://api.mahansco.ir/api/health/", "expect_status": 200, "json_equals": {"status": "healthy"}, "check_cert": true },
+    { "name": "GraphQL endpoint", "url": "https://api.mahansco.ir/graphql/", "method": "POST", "json_body": {"query": "{ __typename }"}, "expect_status": 200, "json_equals": {"data": null, "errors.0.extensions.code": "authentication_required", "errors.0.path.0": "__typename"}, "check_cert": false },
+    { "name": "Marketing API", "url": "https://mahansco.ir/wp-json/", "expect_status": 200, "json_equals": {"name": "Mahansco", "url": "https://mahansco.ir"}, "check_cert": false },
+    { "name": "robots.txt canary", "url": "https://mahansco.ir/robots.txt", "expect_status": 200, "must_contain": "User-agent:", "check_cert": false },
+    { "name": "SSO discovery", "url": "https://sso.mahansco.ir/realms/iranscm/.well-known/openid-configuration", "expect_status": 200, "json_equals": {"issuer": "https://sso.mahansco.ir/realms/iranscm", "jwks_uri": "https://sso.mahansco.ir/realms/iranscm/protocol/openid-connect/certs"}, "check_cert": true }
   ]
 }

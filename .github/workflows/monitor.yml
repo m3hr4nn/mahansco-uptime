@@ -2,8 +2,7 @@ name: Uptime Monitor
 
 on:
   schedule:
-    - cron: "*/5 * * * *"    # every 5 minutes -- GitHub's practical floor (cron is
-                             # throttled below ~5 min and may still be delayed under load)
+    - cron: "2-59/5 * * * *"  # best effort; offset avoids minute zero, not a cadence guarantee
   workflow_dispatch:          # manual "Run workflow" button
     inputs:
       test_ping:
@@ -16,7 +15,7 @@ on:
         default: false
 
 permissions:
-  contents: write             # needed to commit state.json back
+  contents: read
 
 concurrency:
   group: uptime-monitor
@@ -25,12 +24,24 @@ concurrency:
 jobs:
   monitor:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+
+      - name: Validate configuration and behavior
+        run: |
+          python monitor.py --validate
+          python -m unittest discover -s tests
+          PYTHONPYCACHEPREFIX=/tmp/mahansco-uptime-pycache python -m py_compile monitor.py
 
       - name: Run monitor
         env:
@@ -40,13 +51,16 @@ jobs:
           FORCE_DIGEST:       ${{ inputs.send_digest }}
         run: python monitor.py
 
-      - name: Publish status data for GitHub Pages
-        run: cp history.json state.json uptime_daily.json docs/   # Pages serves /docs as the site root
-
       - name: Persist state
-        run: |
-          git config user.name  "uptime-bot"
-          git config user.email "uptime-bot@users.noreply.github.com"
-          git add state.json history.json uptime_daily.json docs/ 2>/dev/null || true
-          git diff --staged --quiet || git commit -m "chore: update monitor state [skip ci]"
-          git push
+        run: bash scripts/persist-state.sh
+
+      - name: Preserve data if publication failed
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: monitor-recovery-${{ github.run_id }}
+          path: |
+            docs/state.json
+            docs/history.json
+            docs/uptime_daily.json
+          retention-days: 7
