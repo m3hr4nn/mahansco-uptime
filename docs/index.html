@@ -3,71 +3,56 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="theme-color" content="#0E4D92" />
-  <title>Mahansco Uptime</title>
-  <style>
-    :root { --ok: #1f9d55; --warn: #d9a400; --bad: #e3342f; --bg: #0e1117; --card: #161b22; --fg: #e6edf3; --muted: #8b949e; --accent: #0E4D92; }
-    * { box-sizing: border-box; }
-    body { margin: 0; font: 15px/1.5 -apple-system, system-ui, Segoe UI, Roboto, sans-serif; background: var(--bg); color: var(--fg); }
-    header { padding: 28px 20px 8px; max-width: 880px; margin: 0 auto; }
-    h1 { margin: 0 0 4px; font-size: 22px; }
-    h2 { font-size: 15px; margin: 28px 0 10px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
-    .sub { color: var(--muted); font-size: 13px; }
-    main { max-width: 880px; margin: 0 auto; padding: 12px 20px 48px; }
-    .summary { display: flex; align-items: center; gap: 10px; margin: 16px 0 6px; font-size: 18px; }
-    .since { color: var(--muted); font-size: 13px; margin-bottom: 8px; }
-    .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
-    .card { background: var(--card); border: 1px solid #21262d; border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; }
-    .row { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
-    .name { font-weight: 600; }
-    .badge { font-size: 12px; padding: 2px 9px; border-radius: 99px; font-weight: 600; }
-    .badge.ok { background: rgba(31,157,85,.15); color: #56d364; }
-    .badge.bad { background: rgba(227,52,47,.15); color: #ff7b72; }
-    .meta { color: var(--muted); font-size: 12px; margin-top: 6px; }
-    .warn { color: #f0c674; }
-    .meta code { color: var(--fg); background: #21262d; padding: 1px 5px; border-radius: 4px; font-size: 11px; }
-    .uptimes { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 8px; font-size: 12px; color: var(--muted); }
-    .uptimes b { color: var(--fg); font-variant-numeric: tabular-nums; }
-    .bars { display: flex; gap: 2px; margin-top: 10px; align-items: flex-end; height: 30px; }
-    .bar { flex: 1; min-height: 3px; border-radius: 2px; background: #30363d; }
-    .bar.ok { background: var(--ok); }
-    .bar.slow { background: var(--warn); }
-    .bar.bad { background: var(--bad); height: 100% !important; }
-    .legend { display: flex; gap: 14px; font-size: 11px; color: var(--muted); margin-top: 6px; }
-    .legend span { display: inline-flex; align-items: center; gap: 5px; }
-    .swatch { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
-    .cert { font-size: 12px; margin-top: 8px; padding-top: 8px; border-top: 1px solid #21262d; color: var(--muted); }
-    .cert.warn { color: #f0c674; }
-    .cert.bad { color: #ff7b72; }
-    .incident { font-size: 13px; padding: 8px 0; border-bottom: 1px solid #21262d; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-    .incident:last-child { border-bottom: 0; }
-    .incident .when { color: var(--muted); font-size: 12px; }
-    .incident .dur { font-variant-numeric: tabular-nums; }
-    .ongoing { color: #ff7b72; font-weight: 600; }
-    .empty { color: var(--muted); font-size: 13px; }
-    footer { text-align: center; color: var(--muted); font-size: 12px; padding: 20px; }
-    a { color: #58a6ff; }
-  </style>
+  <meta name="theme-color" content="#101413" />
+  <meta name="description" content="A simple, live overview of Mahansco service availability." />
+  <title>Mahansco · Service status</title>
+  <link rel="stylesheet" href="status.css" />
 </head>
 <body>
-  <header>
-    <h1>Mahansco Uptime</h1>
-    <div class="sub" id="cadence">GitHub Actions · schedule is best effort</div>
+  <a class="skip-link" href="#main">Skip to service status</a>
+  <header class="site-header">
+    <a class="brand" href="./" aria-label="Mahansco service status home"><span class="brand-mark" aria-hidden="true">m</span> mahansco<span class="brand-divider">/</span><span class="brand-label">Service status</span></a>
+    <span class="header-note">Public service monitor</span>
   </header>
-  <main>
-    <div class="summary" id="summary" role="status" aria-live="polite">Loading…</div>
-    <div class="since" id="since"></div>
-    <div id="targets"></div>
-    <h2>Monitoring gaps</h2>
-    <div class="card" id="gaps">Loading…</div>
-    <h2>Incidents</h2>
-    <div class="card" id="incidents"><div class="empty">Loading…</div></div>
+  <main id="main">
+    <section class="overview" aria-labelledby="summary">
+      <div class="summary-icon unknown" id="summary-icon" aria-hidden="true">·</div>
+      <div><p class="eyebrow">MAHANSCO UPTIME</p><h1 id="summary" role="status" aria-live="polite">Checking service status…</h1><p id="since" class="muted">Loading the latest checks.</p></div>
+    </section>
+    <div class="dashboard">
+      <section class="panel services" aria-labelledby="services-heading">
+        <div class="panel-heading"><h2 id="services-heading">Our services</h2><span class="muted small" id="service-count">Current status</span></div>
+        <div id="targets" class="service-grid"><p class="muted">Loading services…</p></div>
+        <p class="panel-caption" id="service-caption">Each tile shows the latest service check.</p>
+      </section>
+      <aside class="sidebar" aria-label="Service history">
+        <section class="panel history-panel" aria-labelledby="history-heading">
+          <div class="panel-heading"><h2 id="history-heading">Last 24 hours</h2><span class="eyebrow">CHECK HISTORY</span></div>
+          <div id="history-summary" class="history-summary">Loading history…</div>
+          <div id="timeline" class="timeline" role="group" aria-label="Hourly service checks over the last 24 hours"></div>
+          <div class="timeline-labels"><span>24 hours ago</span><span>Now</span></div>
+          <div class="legend"><span><i class="swatch ok"></i>Passed</span><span><i class="swatch warn"></i>Failed check</span><span><i class="swatch unknown"></i>Missing checks</span></div>
+          <p id="history-note" class="panel-caption">Based on recorded checks.</p>
+        </section>
+        <section class="panel incidents-panel" aria-labelledby="incidents-heading">
+          <div class="panel-heading"><h2 id="incidents-heading">Recent incidents</h2></div>
+          <div id="incidents" class="incidents"><p class="muted">Loading incidents…</p></div>
+        </section>
+      </aside>
+    </div>
+    <details class="monitoring-details" id="monitoring-details">
+      <summary id="details-toggle">Monitoring details <span>Check times, availability &amp; diagnostics</span></summary>
+      <div class="details-body">
+        <p id="cadence" class="muted"></p>
+        <p class="muted">Availability uses recorded checks only. Percentages are hidden when too many checks are missing. Missing checks do not mean a service was down.</p>
+        <div id="diagnostics"></div>
+        <h2>Gaps in monitoring · last 24 hours</h2><div id="gaps" class="muted"></div>
+        <h2>Incident history</h2><p class="muted">Times are in Tehran (UTC+03:30). Incident durations may include gaps in monitoring.</p><div id="incident-history"></div>
+      </div>
+    </details>
+    <noscript><p class="noscript">JavaScript is needed to show live service status. Please enable it and reload this page.</p></noscript>
   </main>
-  <footer>
-    Updated <span id="updated">—</span> ·
-    <a href="https://github.com/m3hr4nn/mahansco-uptime">source</a>
-  </footer>
-
+  <footer><span>Mahansco <span class="footer-dot">·</span> <span id="updated">Waiting for the latest update</span></span><a href="https://github.com/m3hr4nn/mahansco-uptime">View source <span aria-hidden="true">↗</span></a></footer>
   <script src="status.js"></script>
 </body>
 </html>

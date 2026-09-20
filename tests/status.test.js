@@ -68,21 +68,22 @@ test("render never calls stale, missing, or mismatched cycles healthy", () => {
   const state = {_meta: {last_run_utc: history[0].ts, latest_observation_utc: history[0].ts,
     config: {settings, targets: [{name: "Example"}]}}, Example: {}};
   page.render(history, state, now);
-  assert.match(elements.summary.textContent, /STALE/);
+  assert.match(elements.summary.textContent, /Waiting for a fresh update/);
   assert.doesNotMatch(elements.summary.textContent, /operational/);
-  assert.match(elements.targets.innerHTML, /LAST OBSERVED UP/);
+  assert.match(elements.targets.innerHTML, /Previously available/);
+  assert.doesNotMatch(elements.targets.innerHTML, /service-tile ok/);
   page.render([], state, now);
-  assert.match(elements.summary.textContent, /UNKNOWN/);
+  assert.match(elements.summary.textContent, /unavailable/);
   state._meta.last_run_utc = iso(now);
   state._meta.latest_observation_utc = iso(now);
   page.render(history, state, now);
-  assert.match(elements.summary.textContent, /UNKNOWN/);
+  assert.match(elements.summary.textContent, /unavailable/);
   history[0].ts = iso(now);
   page.render(history, state, now);
   assert.match(elements.summary.textContent, /All systems operational/);
   delete history[0].results.Example;
   page.render(history, state, now);
-  assert.match(elements.summary.textContent, /UNKNOWN/);
+  assert.match(elements.summary.textContent, /unavailable/);
 });
 test("remote names, details, URLs and certificate metadata are escaped", () => {
   const elements = documentStub();
@@ -93,5 +94,67 @@ test("remote names, details, URLs and certificate metadata are escaped", () => {
   page.render(history, state, now);
   assert.doesNotMatch(elements.targets.innerHTML, /<img/);
   assert.match(elements.targets.innerHTML, /&lt;img/);
+  assert.doesNotMatch(elements.diagnostics.innerHTML, /<img/);
+  assert.match(elements.diagnostics.innerHTML, /&lt;img/);
   assert.equal(page.esc("'&\"<>"), "&#39;&amp;&quot;&lt;&gt;");
+});
+test("tiles distinguish a confirmed outage, a pending check, and old results", () => {
+  assert.deepEqual(page.tileStatus({confirmed_up: false, ok: false}, "fresh"), {tone: "bad", text: "Unavailable"});
+  assert.deepEqual(page.tileStatus({confirmed_up: true, ok: false}, "fresh"), {tone: "warn", text: "Checking an issue"});
+  assert.deepEqual(page.tileStatus({confirmed_up: true, ok: true}, "delayed"), {tone: "unknown", text: "Previously available"});
+  assert.equal(page.tileStatus({confirmed_up: false}, "stale").tone, "unknown");
+  assert.equal(page.tileStatus(undefined, "fresh").tone, "unknown");
+});
+test("hourly history never fills missing checks with green or hides failed checks", () => {
+  const history = Array.from({length: 288}, (_, i) => sample(now - (287 - i) * 300000, true));
+  assert.ok(page.hourlyHealth(history, ["Example"], settings, now).every(h => h.tone === "ok"));
+  assert.ok(page.hourlyHealth(history.slice(-2), ["Example"], settings, now).every(h => h.tone === "unknown"));
+  assert.ok(page.hourlyHealth(history, ["Example", "Missing"], settings, now).every(h => h.tone === "unknown"));
+  history.at(-1).results.Example.ok = false;
+  assert.equal(page.hourlyHealth(history.slice(-1), ["Example"], settings, now).at(-1).tone, "warn");
+  const future = sample(now + 300000, false);
+  const anchor = {...sample(now, false), boundary_anchor: true};
+  assert.equal(page.hourlyHealth([future, anchor], ["Example"], settings, now).at(-1).tone, "unknown");
+});
+test("unknown cycles clear all prior data and do not leave a healthy history summary", () => {
+  const elements = documentStub();
+  const history = [sample(now, true)];
+  const state = {_meta: {last_run_utc: iso(now), latest_observation_utc: iso(now), config: {settings, targets: [{name: "Example"}]}}};
+  page.render(history, state, now);
+  assert.match(elements.summary.textContent, /All systems operational/);
+  page.showUnavailable();
+  assert.match(elements.summary.textContent, /unavailable/);
+  assert.doesNotMatch(elements.targets.innerHTML, /Operational/);
+  assert.equal(elements.timeline.innerHTML, "");
+  assert.equal(elements.diagnostics.innerHTML, "");
+  assert.match(elements.incidents.innerHTML, /unavailable/);
+  assert.match(elements["history-summary"].innerHTML, /unavailable/);
+  assert.match(elements.updated.textContent, /Waiting/);
+});
+test("failed fetch schedules an automatic retry and a successful retry restores service status", async () => {
+  const elements = documentStub();
+  const original = {fetch: global.fetch, setTimeout: global.setTimeout, clearTimeout: global.clearTimeout,
+    setInterval: global.setInterval, clearInterval: global.clearInterval};
+  let retry, seconds;
+  global.setTimeout = (callback, delay) => { retry = callback; seconds = delay; return 1; };
+  global.clearTimeout = () => {};
+  global.setInterval = () => 1;
+  global.clearInterval = () => {};
+  try {
+    global.fetch = async () => { throw new Error("offline"); };
+    await page.loadPage();
+    assert.match(elements.summary.textContent, /unavailable/);
+    assert.equal(seconds, 60000);
+    assert.equal(retry, page.loadPage);
+    const time = Date.now();
+    const history = [sample(time, true)];
+    const state = {_meta: {last_run_utc: iso(time), latest_observation_utc: iso(time), config: {settings, targets: [{name: "Example"}]}}};
+    global.fetch = async path => ({ok: true, json: async () => path.startsWith("history") ? history : state});
+    await retry();
+    assert.match(elements.summary.textContent, /All systems operational/);
+  } finally {
+    Object.assign(global, original);
+    delete global.statusClock;
+    delete global.statusRefresh;
+  }
 });

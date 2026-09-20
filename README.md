@@ -11,7 +11,7 @@ are no paid monitoring dependencies.
 - `monitor.py` — monitoring and alerting logic
 - `targets.json` — monitoring configuration
 - `.github/workflows/monitor.yml` — scheduled execution
-- `docs/index.html`, `docs/status.js` — accessible public status page and calculations
+- `docs/index.html`, `docs/status.css`, `docs/status.js` — accessible public status page and calculations
 - `docs/state.json`, `docs/history.json`, `docs/uptime_daily.json` — generated data,
   owned by the scheduled workflow; never regenerate these during development tests
 - `scripts/persist-state.sh` — bounded, non-force publication retries
@@ -59,7 +59,19 @@ checks within that slot must succeed for it to count as successful. Extra manual
 runs cannot fill other missing slots. Raw failed observations count as failures
 for observed availability even when alert debounce absorbs them.
 
-The page reports observed availability plus observed/expected slots and coverage.
+The public page presents a compact dark service-tile dashboard, with plain-language
+status, an hourly check-history strip and recent confirmed incidents. Technical
+information is collapsed under **Monitoring details**: observed availability,
+observed/expected slots, coverage, certificate information and monitoring gaps.
+Tile sizes emphasize the website and web app; they do not encode traffic or uptime.
+The sign-in tile checks public discovery configuration, not a complete login flow.
+Gray tiles show historical or unknown status; delayed checks never appear as live
+green tiles. The history strip shows an hour as green only when every configured
+service meets the coverage threshold, amber when any recorded check failed, and
+gray otherwise. It does not interpolate missing observations. Failed page fetches
+clear old status and retry automatically. Open diagnostics stay open across updates.
+
+The details report observed availability plus observed/expected slots and coverage.
 Below 90% coverage it displays insufficient data and suppresses the percentage.
 Unobserved time is never credited as successful or treated as an endpoint outage.
 Gaps longer than two expected intervals appear separately; exact missing-slot
