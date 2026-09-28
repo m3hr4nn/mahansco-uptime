@@ -112,23 +112,29 @@ function tileStatus(current, fresh) {
   return {tone: "ok", text: "Operational"};
 }
 function hourlyHealth(history, names, settings, now) {
-  const hour = DAY / 24, cutoff = now - DAY, interval = settings.expected_interval_seconds * 1000;
-  const buckets = Array.from({length: 24}, (_, i) => ({start: cutoff + i * hour, slots: new Map(), failed: false}));
+  const interval = settings.expected_interval_seconds * 1000, bucketSize = Math.max(DAY / 24, interval);
+  const cutoff = now - DAY, count = Math.ceil(DAY / bucketSize);
+  const buckets = Array.from({length: count}, (_, i) => ({start: cutoff + i * bucketSize,
+    end: Math.min(now, cutoff + (i + 1) * bucketSize), slots: new Map(), failed: false}));
   for (const sample of history) {
     const time = +parseTs(sample.ts);
     if (sample.boundary_anchor || time <= cutoff || time > now) continue;
-    const bucket = buckets[Math.min(23, Math.ceil((time - cutoff) / hour) - 1)];
+    const bucket = buckets[Math.min(count - 1, Math.floor((time - cutoff) / bucketSize))];
+    const expected = Math.max(1, Math.ceil((bucket.end - bucket.start) / interval));
+    const slot = Math.min(expected - 1, Math.floor((time - bucket.start) / interval));
     for (const name of names) {
       const result = sample.results[name];
       if (!result || typeof result.ok !== "boolean") continue;
       if (result.ok === false) bucket.failed = true;
       if (!bucket.slots.has(name)) bucket.slots.set(name, new Set());
-      bucket.slots.get(name).add(Math.ceil((time - bucket.start) / interval) - 1);
+      bucket.slots.get(name).add(slot);
     }
   }
-  return buckets.map(bucket => ({start: bucket.start, end: bucket.start + hour,
-    tone: bucket.failed ? "warn" : names.every(name =>
-      (bucket.slots.get(name)?.size || 0) / Math.ceil(hour / interval) >= settings.minimum_coverage) ? "ok" : "unknown"}));
+  return buckets.map(bucket => ({start: bucket.start, end: bucket.end,
+    tone: bucket.failed ? "warn" : names.every(name => {
+      const expected = Math.max(1, Math.ceil((bucket.end - bucket.start) / interval));
+      return (bucket.slots.get(name)?.size || 0) / expected >= settings.minimum_coverage;
+    }) ? "ok" : "unknown"}));
 }
 function setHtml(id, html) {
   const node = document.getElementById(id);
@@ -197,14 +203,14 @@ function render(history, state, now = Date.now()) {
     pending ? ["Checking a possible issue", "warn"] : ["All systems operational", "ok"];
   setSummary(...overall);
   el("since").textContent = `Last checked ${humanAge(now - +parseTs(latest.ts))}. ` +
-    (fresh !== "fresh" ? "Current service status is unconfirmed." : pending ? "We’re checking again to confirm." : "This page updates automatically.");
+    (fresh !== "fresh" ? "Current service status is unconfirmed." : pending ? "We’re checking again to confirm." : "Checks run about every four hours under GitHub Actions scheduling policies; runs may be delayed or dropped.");
   el("updated").textContent = `Last update ${fmtLocal(meta.last_run_utc)}`;
   el("service-count").textContent = `${names.length} services`;
   el("service-caption").textContent = fresh === "fresh" ? "Service status at the latest check. More detail is available below." :
     "These are past results. New checks are taking longer than usual.";
-  el("cadence").textContent = `Checks are scheduled every ${settings.expected_interval_seconds / 60} minutes; scheduling delays can happen. ` +
-    `The page refreshes every ${settings.refresh_seconds} seconds. An outage is confirmed after ${settings.failures_before_down} consecutive failed checks. ` +
-    `Data is considered out of date after ${settings.stale_after_seconds / 60} minutes.`;
+  el("cadence").textContent = `Checks are scheduled about every ${settings.expected_interval_seconds / 3600} hours under GitHub Actions scheduling policies; runs can be delayed or dropped. ` +
+    `The page refreshes every ${settings.refresh_seconds} seconds. One failed check is rechecked; DOWN is confirmed after ${settings.failures_before_down} consecutive failures. ` +
+    `Data is marked delayed after ${settings.delayed_after_seconds / 3600} hours and stale after ${settings.stale_after_seconds / 3600} hours.`;
   const allIncidents = [], allGaps = [], diagnostics = [];
   setHtml("targets", names.map((name, index) => {
     const current = latest.results[name], st = state[name] || {}, info = serviceInfo(name);
@@ -244,7 +250,7 @@ function render(history, state, now = Date.now()) {
     const label = `${fmtLocal(new Date(h.start).toISOString())} — ${fmtLocal(new Date(h.end).toISOString())}: ${hourLabels[h.tone]}`;
     return `<span class="hour ${h.tone}" role="img" aria-label="${esc(label)}" title="${esc(label)}"></span>`;
   }).join(""));
-  el("history-note").textContent = "Each bar is one hour. Missing checks don’t mean downtime; a failed check may be temporary.";
+  el("history-note").textContent = `Each bar is an expected monitoring window (about ${settings.expected_interval_seconds / 3600} hours). Missing checks don’t mean downtime; a failed check may be temporary.`;
   const priorityIncidents = [...allIncidents].sort((a, b) => Number(b.ongoing && !b.removed) - Number(a.ongoing && !a.removed) || b.start - a.start);
   setHtml("incidents", priorityIncidents.length ? priorityIncidents.slice(0, 3).map(i => incidentHtml(i)).join("") :
     '<div class="quiet-state"><span class="quiet-icon" aria-hidden="true">○</span><div><strong>No confirmed incidents</strong><p>In the available monitoring history.</p></div></div>');

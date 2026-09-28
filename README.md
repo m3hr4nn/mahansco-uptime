@@ -44,31 +44,33 @@ performs real probes, notifications and generated-file writes; do not use it as 
 public settings and target names/URLs in `state._meta.config`; the page derives
 all operational thresholds and its refresh cadence from that data.
 
-The nominal interval is five minutes, delayed means older than ten minutes, and
-stale means older than twenty minutes. Equality stays in the preceding state.
-This tolerates ordinary schedule jitter without allowing hours-old data to appear
-healthy. Missing metadata, invalid timestamps, failed fetches or mismatched
+The workflow is scheduled about every four hours (`17 */4 * * *`), following
+GitHub Actions scheduling policies. GitHub may delay or drop scheduled runs, so
+this is an expected cadence, not a guaranteed deadline. Data is marked delayed
+after five hours and stale after eight hours; equality stays in the preceding
+state. Missing metadata, invalid timestamps, failed fetches or mismatched
 state/history snapshots produce UNKNOWN. Stale data shows historical endpoint
 states, never an operational overall status. The page updates freshness locally
 between refreshes. Tehran display includes UTC+03:30; new stored timestamps use UTC.
 
 Availability windows are trailing 24 hours, 7 days and 30 days, calculated from
-timestamped observations. Each window is divided into expected five-minute slots
+timestamped observations. Each window is divided into expected four-hour slots
 ending at the current time. A slot is observed if it has at least one check; all
 checks within that slot must succeed for it to count as successful. Extra manual
 runs cannot fill other missing slots. Raw failed observations count as failures
 for observed availability even when alert debounce absorbs them.
 
-The public page presents a compact dark service-tile dashboard, with plain-language
-status, an hourly check-history strip and recent confirmed incidents. Technical
-information is collapsed under **Monitoring details**: observed availability,
+The public page presents a compact dark service-tile dashboard and a collapsible
+**History & monitoring details** menu below it. The menu contains the 24-hour
+check-history strip, recent and retained incidents, observed availability,
 observed/expected slots, coverage, certificate information and monitoring gaps.
 Tile sizes emphasize the website and web app; they do not encode traffic or uptime.
 The sign-in tile checks public discovery configuration, not a complete login flow.
 Gray tiles show historical or unknown status; delayed checks never appear as live
-green tiles. The history strip shows an hour as green only when every configured
-service meets the coverage threshold, amber when any recorded check failed, and
-gray otherwise. It does not interpolate missing observations. Failed page fetches
+green tiles. The 24-hour history strip divides time into expected monitoring
+windows (about four hours each), green only when every configured service meets
+the coverage threshold, amber when any recorded check failed, and gray otherwise.
+It does not interpolate missing observations. Failed page fetches
 clear old status and retry automatically. Open diagnostics stay open across updates.
 
 The details report observed availability plus observed/expected slots and coverage.
@@ -78,12 +80,14 @@ Gaps longer than two expected intervals appear separately; exact missing-slot
 counts are shown for every window. Legacy daily sample tallies are retained for
 continuity but are not used to claim 30-day coverage or availability.
 
-Retention is 35 elapsed days, plus one predecessor per target for incident boundary
-context. History is serialized as one compact observation per line to reduce
-generated file size and Git diff churn. Removed endpoints leave active state on
-the next cycle but remain in retained history and the incident view. Git storage
-still grows with generated commits; changing publication/storage architecture is
-a separate decision, and the repository history is not rewritten.
+Probe observations and daily rollups are retained for 35 elapsed days, plus one
+predecessor per target for incident boundary context. Availability is calculated
+over 24-hour, 7-day and 30-day windows. Failed Telegram notifications are retried
+from a queue capped at 50 messages and 48 hours. History is serialized as one
+compact observation per line to reduce generated file size and Git diff churn.
+Removed endpoints leave active state on the next cycle but remain in retained
+history and the incident view. Git commit history is retained independently and
+is not pruned by the 35-day data retention window.
 
 ## Targets and alerts
 
@@ -114,10 +118,13 @@ elapsed time between observations and may include monitoring gaps; open incident
 are described as open at the last observation. Legacy raw-only history is not
 retroactively promoted into confirmed incidents.
 
-Certificate warnings are once per configured threshold crossing. Transient metadata
-inspection failures preserve previous certificates and warning flags; three failed
-inspections queue one warning, and successful inspection queues one recovery.
-HTTPS request certificate validation remains independent and mandatory.
+Certificate details include the expiry date and are checked on each monitoring
+cycle. Telegram warnings are sent once when a certificate crosses 21, under 10,
+7 or 1 whole days remaining. Transient metadata inspection failures preserve
+previous certificates and warning flags; three failed inspections queue one
+warning, and successful inspection queues one recovery. HTTPS request certificate
+validation remains independent and mandatory. Renew certificates before expiry;
+the under-10-day warning may arrive on the next scheduled check.
 
 Telegram credentials come only from runtime environment variables
 `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`. Errors log categories/status codes, never
@@ -133,9 +140,9 @@ duplicate delivery; Telegram and Git do not provide a shared transaction.
 ## Scheduling, publication and recovery
 
 GitHub's scheduled workflows are best effort and may be delayed or dropped; a
-five-minute cron is not a five-minute detection guarantee. See
+four-hour cron is an expected check cadence, not a four-hour detection guarantee. See
 [GitHub's schedule documentation](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule).
-The cron is staggered away from minute zero. Runs have a ten-minute timeout,
+The cron is staggered to minute 17 to avoid the busiest minute. Runs have a ten-minute timeout,
 serialized concurrency, validation before probing, and job-scoped write permissions.
 Action major versions match the main project's approved checkout v7/setup-python v6.
 

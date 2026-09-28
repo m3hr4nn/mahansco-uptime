@@ -2,7 +2,7 @@ name: Uptime Monitor
 
 on:
   schedule:
-    - cron: "2-59/5 * * * *"  # best effort; offset avoids minute zero, not a cadence guarantee
+    - cron: "17 */4 * * *"  # about every four hours; GitHub may delay or drop scheduled runs
   workflow_dispatch:          # manual "Run workflow" button
     inputs:
       test_ping:

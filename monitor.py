@@ -612,10 +612,9 @@ def main():
             del rollup[old]
 
     # Heartbeat digest so the channel isn't silent between incidents. Fires once
-    # `digest_every_hours` have ELAPSED since the previous one (tracked in state),
-    # rather than at a fixed minute-of-hour -- GitHub's cron is throttled and jittery,
-    # so an elapsed-time gate is the only reliable way to get a roughly-hourly cadence
-    # off the 5-min run schedule. Also sendable on demand via the FORCE_DIGEST input.
+    # `digest_every_hours` have elapsed since the previous successful delivery,
+    # using actual elapsed time because GitHub may delay scheduled runs. Also
+    # sendable on demand via the FORCE_DIGEST input.
     every = SETTINGS["digest_every_hours"]
     last_digest = meta.get("last_digest_utc")
     due = True
@@ -631,7 +630,7 @@ def main():
     if (force_digest or due) and not digest_pending:
         up = sum(1 for r in sample["results"].values() if r["confirmed_up"])
         total = len(sample["results"])
-        label = "Hourly digest" if every == 1 else "Status digest"
+        label = f"{every}-hour status digest"
         lines = [f"\U0001F4CA <b>{label}</b> — {now}", f"{up}/{total} endpoints confirmed UP", ""]
         for n, r in sample["results"].items():
             mark = "\U0001F7E1" if not r["ok"] and r["confirmed_up"] else "\U0001F7E2" if r["confirmed_up"] else "\U0001F534"

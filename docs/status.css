@@ -70,6 +70,7 @@ summary { cursor: pointer; }
 .monitoring-details > summary span { color: var(--muted); margin-left: 12px; font-size: 11px; }
 .details-body { padding: 0 0 24px; font-size: 12px; }
 .details-body > p { margin-bottom: 10px; }
+.history-panels { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin: 18px 0; }
 .details-body h2 { margin: 24px 0 8px; }
 .details-body > p, .diagnostic-content p { overflow-wrap: anywhere; }
 .target-detail { border: 1px solid var(--border); border-radius: 6px; margin-top: 10px; padding: 12px 15px; }
@@ -87,5 +88,5 @@ footer a { text-decoration: none; }
 .noscript { padding: 20px; color: var(--amber); }
 @media (min-width: 1500px) { main { padding-top: 20px; } }
 @media (max-width: 900px) { .dashboard { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); } .panel { padding: 16px; } .service-tile.supporting { grid-column: span 3; } .service-tile.supporting:last-child { grid-column: span 6; min-height: 94px; } .panel-heading .eyebrow { display: none; } }
-@media (max-width: 680px) { .site-header, main, footer { width: calc(100% - 32px); } .site-header { height: 73px; } .header-note { display: none; } .brand { font-size: 19px; } .brand-divider { margin: 0 2px; } .overview { padding: 30px 0 25px; gap: 14px; } .summary-icon { width: 42px; height: 42px; font-size: 22px; } h1 { font-size: 25px; } #since { font-size: 12px; } .dashboard { grid-template-columns: 1fr; } .service-tile.primary { min-height: 145px; } .sidebar { display: grid; grid-template-columns: 1fr; } .history-summary { margin: 16px 0; } .monitoring-details > summary span { display: block; margin: 5px 0 0 17px; } footer { align-items: flex-start; font-size: 10px; } footer > span { max-width: 75%; } }
+@media (max-width: 680px) { .site-header, main, footer { width: calc(100% - 32px); } .site-header { height: 73px; } .header-note { display: none; } .brand { font-size: 19px; } .brand-divider { margin: 0 2px; } .overview { padding: 30px 0 25px; gap: 14px; } .summary-icon { width: 42px; height: 42px; font-size: 22px; } h1 { font-size: 25px; } #since { font-size: 12px; } .dashboard { grid-template-columns: 1fr; } .service-tile.primary { min-height: 145px; } .history-panels { grid-template-columns: 1fr; } .history-summary { margin: 16px 0; } .monitoring-details > summary span { display: block; margin: 5px 0 0 17px; } footer { align-items: flex-start; font-size: 10px; } footer > span { max-width: 75%; } }
 @media (prefers-reduced-motion: no-preference) { a, summary { transition: color .15s; } a:hover, summary:hover { color: #a8f4cc; } }

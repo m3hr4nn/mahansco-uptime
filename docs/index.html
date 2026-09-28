@@ -25,28 +25,29 @@
         <div id="targets" class="service-grid"><p class="muted">Loading services…</p></div>
         <p class="panel-caption" id="service-caption">Each tile shows the latest service check.</p>
       </section>
-      <aside class="sidebar" aria-label="Service history">
-        <section class="panel history-panel" aria-labelledby="history-heading">
-          <div class="panel-heading"><h2 id="history-heading">Last 24 hours</h2><span class="eyebrow">CHECK HISTORY</span></div>
-          <div id="history-summary" class="history-summary">Loading history…</div>
-          <div id="timeline" class="timeline" role="group" aria-label="Hourly service checks over the last 24 hours"></div>
-          <div class="timeline-labels"><span>24 hours ago</span><span>Now</span></div>
-          <div class="legend"><span><i class="swatch ok"></i>Passed</span><span><i class="swatch warn"></i>Failed check</span><span><i class="swatch unknown"></i>Missing checks</span></div>
-          <p id="history-note" class="panel-caption">Based on recorded checks.</p>
-        </section>
-        <section class="panel incidents-panel" aria-labelledby="incidents-heading">
-          <div class="panel-heading"><h2 id="incidents-heading">Recent incidents</h2></div>
-          <div id="incidents" class="incidents"><p class="muted">Loading incidents…</p></div>
-        </section>
-      </aside>
     </div>
     <details class="monitoring-details" id="monitoring-details">
-      <summary id="details-toggle">Monitoring details <span>Check times, availability &amp; diagnostics</span></summary>
+      <summary id="details-toggle">History &amp; monitoring details <span>Incidents, certificates, retention</span></summary>
       <div class="details-body">
         <p id="cadence" class="muted"></p>
+        <p class="muted">Action points: renew TLS certificates before expiry; Telegram warns below 10 days remaining. Probe observations are retained for 35 days; availability windows are 24 hours, 7 days and 30 days. Unsent Telegram alerts are kept for up to 48 hours (maximum 50). Git commit history is retained separately.</p>
+        <div class="history-panels">
+          <section class="panel history-panel" aria-labelledby="history-heading">
+            <div class="panel-heading"><h2 id="history-heading">Last 24 hours</h2><span class="eyebrow">CHECK HISTORY</span></div>
+            <div id="history-summary" class="history-summary">Loading history…</div>
+            <div id="timeline" class="timeline" role="group" aria-label="Service checks over the last 24 hours"></div>
+            <div class="timeline-labels"><span>24 hours ago</span><span>Now</span></div>
+            <div class="legend"><span><i class="swatch ok"></i>Passed</span><span><i class="swatch warn"></i>Failed check</span><span><i class="swatch unknown"></i>Missing checks</span></div>
+            <p id="history-note" class="panel-caption">Based on recorded checks.</p>
+          </section>
+          <section class="panel incidents-panel" aria-labelledby="incidents-heading">
+            <div class="panel-heading"><h2 id="incidents-heading">Recent incidents</h2></div>
+            <div id="incidents" class="incidents"><p class="muted">Loading incidents…</p></div>
+          </section>
+        </div>
         <p class="muted">Availability uses recorded checks only. Percentages are hidden when too many checks are missing. Missing checks do not mean a service was down.</p>
         <div id="diagnostics"></div>
-        <h2>Gaps in monitoring · last 24 hours</h2><div id="gaps" class="muted"></div>
+        <h2>Monitoring gaps · last 24 hours</h2><div id="gaps" class="muted"></div>
         <h2>Incident history</h2><p class="muted">Times are in Tehran (UTC+03:30). Incident durations may include gaps in monitoring.</p><div id="incident-history"></div>
       </div>
     </details>
