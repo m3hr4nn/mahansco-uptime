@@ -116,13 +116,14 @@
         "failures_before_down": 2,
         "cert_warn_days": [
           21,
+          9,
           7,
           1
         ],
-        "digest_every_hours": 1,
-        "expected_interval_seconds": 300,
-        "delayed_after_seconds": 600,
-        "stale_after_seconds": 1200,
+        "digest_every_hours": 4,
+        "expected_interval_seconds": 14400,
+        "delayed_after_seconds": 18000,
+        "stale_after_seconds": 28800,
         "refresh_seconds": 60,
         "retention_days": 35,
         "minimum_coverage": 0.9,
