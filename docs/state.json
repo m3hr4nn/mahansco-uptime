@@ -5,7 +5,6 @@
     "last_detail": "OK 1296ms",
     "last_check": "2026-09-28 09:03 UTC+03:30",
     "last_check_utc": "2026-09-28T05:33:24.292976+00:00",
-    "final_url": "https://mahansco.ir/",
     "latency_ms": 1296,
     "status_code": 200,
     "dns_ms": 386,
@@ -27,7 +26,6 @@
     "last_detail": "OK 633ms",
     "last_check": "2026-09-28 09:03 UTC+03:30",
     "last_check_utc": "2026-09-28T05:33:24.292976+00:00",
-    "final_url": "https://app.mahansco.ir/",
     "latency_ms": 633,
     "status_code": 200,
     "dns_ms": 507,
@@ -49,7 +47,6 @@
     "last_detail": "OK 649ms",
     "last_check": "2026-09-28 09:03 UTC+03:30",
     "last_check_utc": "2026-09-28T05:33:24.292976+00:00",
-    "final_url": "https://api.mahansco.ir/api/health/",
     "latency_ms": 649,
     "status_code": 200,
     "dns_ms": 391,
@@ -65,26 +62,12 @@
     "cert_warned_7": false,
     "cert_warned_1": false
   },
-  "GraphQL endpoint": {
-    "up": true,
-    "fail_streak": 0,
-    "last_detail": "OK 658ms",
-    "last_check": "2026-09-28 09:03 UTC+03:30",
-    "last_check_utc": "2026-09-28T05:33:24.292976+00:00",
-    "final_url": "https://api.mahansco.ir/graphql/",
-    "latency_ms": 658,
-    "status_code": 200,
-    "dns_ms": 390,
-    "dns_warning": null,
-    "dns_mismatch": false
-  },
   "Marketing API": {
     "up": true,
     "fail_streak": 0,
     "last_detail": "OK 1428ms",
     "last_check": "2026-09-28 09:03 UTC+03:30",
     "last_check_utc": "2026-09-28T05:33:24.292976+00:00",
-    "final_url": "https://mahansco.ir/wp-json/",
     "latency_ms": 1428,
     "status_code": 200,
     "dns_ms": 385,
@@ -97,7 +80,6 @@
     "last_detail": "OK 771ms",
     "last_check": "2026-09-28 09:03 UTC+03:30",
     "last_check_utc": "2026-09-28T05:33:24.292976+00:00",
-    "final_url": "https://mahansco.ir/robots.txt",
     "latency_ms": 771,
     "status_code": 200,
     "dns_ms": 385,
@@ -133,32 +115,22 @@
       },
       "targets": [
         {
-          "name": "Landing (mahansco.ir)",
-          "url": "https://mahansco.ir/"
+          "name": "Landing (mahansco.ir)"
         },
         {
-          "name": "App SPA (app.mahansco.ir)",
-          "url": "https://app.mahansco.ir/"
+          "name": "App SPA (app.mahansco.ir)"
         },
         {
-          "name": "App health API",
-          "url": "https://api.mahansco.ir/api/health/"
+          "name": "App health API"
         },
         {
-          "name": "GraphQL endpoint",
-          "url": "https://api.mahansco.ir/graphql/"
+          "name": "Application access check"
         },
         {
-          "name": "Marketing API",
-          "url": "https://mahansco.ir/wp-json/"
+          "name": "Marketing API"
         },
         {
-          "name": "robots.txt canary",
-          "url": "https://mahansco.ir/robots.txt"
-        },
-        {
-          "name": "SSO discovery",
-          "url": "https://sso.mahansco.ir/realms/iranscm/.well-known/openid-configuration"
+          "name": "robots.txt canary"
         }
       ]
     },
@@ -166,26 +138,16 @@
     "commit": "8b34576929f4e5cf48e581e6b5cda3a763d03b9f",
     "latest_observation_utc": "2026-09-28T05:33:24.292976+00:00"
   },
-  "SSO discovery": {
+  "Application access check": {
     "up": true,
     "fail_streak": 0,
-    "last_detail": "OK 1177ms",
+    "last_detail": "OK 658ms",
     "last_check": "2026-09-28 09:03 UTC+03:30",
     "last_check_utc": "2026-09-28T05:33:24.292976+00:00",
-    "final_url": "https://sso.mahansco.ir/realms/iranscm/.well-known/openid-configuration",
-    "latency_ms": 1177,
+    "latency_ms": 658,
     "status_code": 200,
-    "dns_ms": 416,
+    "dns_ms": 390,
     "dns_warning": null,
-    "dns_mismatch": false,
-    "cert_failure_streak": 0,
-    "cert_inspected_utc": "2026-09-28T05:33:24.292976+00:00",
-    "cert_days_left": 47,
-    "cert_not_after": "2026-11-14",
-    "cert_not_before": "2026-08-16",
-    "cert_issuer": "Let's Encrypt",
-    "cert_warned_21": false,
-    "cert_warned_7": false,
-    "cert_warned_1": false
+    "dns_mismatch": false
   }
 }

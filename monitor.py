@@ -360,7 +360,7 @@ def check(t):
     if t.get("expected_ips") and not set(ips) <= {str(ipaddress.ip_address(ip)) for ip in t["expected_ips"]}:
         dns_warning = "DNS addresses differ from the configured address set"
 
-    # Bounded public GET or the configured harmless GraphQL POST.
+    # Bounded public GET or the configured harmless metadata POST.
     start = time.monotonic()
     final_url = None
     try:
@@ -481,7 +481,7 @@ def retain_history(history, now):
 
 def public_config():
     return {"schema_version": 2, "settings": SETTINGS,
-            "targets": [{"name": t["name"], "url": t["url"]} for t in TARGETS["targets"]]}
+            "targets": [{"name": t["name"]} for t in TARGETS["targets"]]}
 
 
 def main():
@@ -521,7 +521,7 @@ def main():
 
     for t, (probe, ci, cert_error) in zip(targets, probes):
         name = t["name"]
-        ok, detail, latency, status_code, dns_ms, dns_warning, final_url = probe
+        ok, detail, latency, status_code, dns_ms, dns_warning, _final_url = probe
         prev = state.get(name, {"up": True, "fail_streak": 0})
 
         # 2-strikes debounce: absorb a single flaky probe from GitHub's network.
@@ -550,7 +550,7 @@ def main():
 
         new_state = {"up": confirmed_up, "fail_streak": fail_streak,
                      "last_detail": detail, "last_check": now,
-                     "last_check_utc": nowdt.isoformat(), "final_url": final_url,
+                     "last_check_utc": nowdt.isoformat(),
                      "latency_ms": latency, "status_code": status_code, "dns_ms": dns_ms,
                      "dns_warning": dns_warning, "dns_mismatch": dns_mismatch}
         if is_down:
@@ -593,7 +593,7 @@ def main():
         sample["results"][name] = {"ok": ok, "confirmed_up": confirmed_up,
                                    "detail": detail, "latency_ms": latency,
                                    "status_code": status_code, "dns_ms": dns_ms,
-                                   "dns_warning": dns_warning, "final_url": final_url}
+                                   "dns_warning": dns_warning}
         if is_down:
             sample["results"][name]["incident_started_utc"] = new_state["incident_started_utc"]
 

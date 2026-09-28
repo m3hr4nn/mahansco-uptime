@@ -41,7 +41,7 @@ performs real probes, notifications and generated-file writes; do not use it as 
 ## Freshness and availability
 
 `targets.json` is the configuration source. Every completed cycle embeds its
-public settings and target names/URLs in `state._meta.config`; the page derives
+public settings and target names in `state._meta.config`; the page derives
 all operational thresholds and its refresh cadence from that data.
 
 The workflow is scheduled about every four hours (`17 */4 * * *`), following
@@ -65,7 +65,8 @@ The public page presents a compact dark service-tile dashboard and a collapsible
 check-history strip, recent and retained incidents, observed availability,
 observed/expected slots, coverage, certificate information and monitoring gaps.
 Tile sizes emphasize the website and web app; they do not encode traffic or uptime.
-The sign-in tile checks public discovery configuration, not a complete login flow.
+Status data omits exact checked URLs. The public source repository still contains
+the probe configuration.
 Gray tiles show historical or unknown status; delayed checks never appear as live
 green tiles. The 24-hour history strip divides time into expected monitoring
 windows (about four hours each), green only when every configured service meets
@@ -91,18 +92,15 @@ is not pruned by the 35-day data retention window.
 
 ## Targets and alerts
 
-Checks cover the landing page, SPA, canonical API health, GraphQL, WordPress API,
-robots canary and the enabled public SSO discovery document. The obsolete address
-pin is removed. Optional `expected_ips` accepts validated public IPv4/IPv6 sets;
+Checks cover the landing page, SPA, canonical API health, application access,
+WordPress API and robots canary. The obsolete address pin is removed.
+Optional `expected_ips` accepts validated public IPv4/IPv6 sets;
 all DNS A/AAAA answers are considered, and unexpected addresses are advisory.
 Nonpublic DNS answers fail the probe without publishing the addresses.
 
-Targets require a body marker or exact JSON path assertions. GraphQL uses only
-the harmless POST `{ __typename }`. This service currently requires authentication
-even for that query, so its expected public result is the GraphQL
-`authentication_required` error for `__typename`, with null data. This verifies
-the public GraphQL authentication boundary, not authenticated resolver health.
-SSO validates the public realm discovery issuer and key URL without logging in.
+Targets require a body marker or exact JSON path assertions. The application
+access check uses only a harmless metadata query and verifies that unauthenticated
+access is denied; it does not test authenticated resolver health.
 
 Cross-host redirects default to denied and can be explicitly enabled per target.
 HTTPS, public destination checks and semantic assertions still apply; POST redirects

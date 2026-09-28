@@ -86,8 +86,7 @@ const SERVICE_LABELS = {
   "Landing (mahansco.ir)": {label: "Website", description: "mahansco.ir", size: "primary", order: 0},
   "App SPA (app.mahansco.ir)": {label: "Web app", description: "app.mahansco.ir", size: "primary", order: 1},
   "App health API": {label: "App API", description: "Application health", order: 2},
-  "SSO discovery": {label: "Sign-in service", description: "Public sign-in configuration", order: 3},
-  "GraphQL endpoint": {label: "GraphQL", description: "API access check", size: "supporting", order: 4},
+  "Application access check": {label: "Application access", description: "Public API check", size: "supporting", order: 4},
   "Marketing API": {label: "Website API", description: "Website content", size: "supporting", order: 5},
   "robots.txt canary": {label: "Site access", description: "Search engine access file", size: "supporting", order: 6}
 };
@@ -154,6 +153,12 @@ function setSummary(message, tone) {
   const icon = document.getElementById("summary-icon");
   icon.className = `summary-icon ${tone}`;
   icon.textContent = {ok: "✓", warn: "!", bad: "!", unknown: "–"}[tone];
+  const art = document.getElementById("status-visual-art");
+  if (art) {
+    art.className = `status-visual-art ${tone}`;
+    document.getElementById("visual-mark").textContent = {ok: "✓", warn: "!", bad: "!", unknown: "?"}[tone];
+    document.getElementById("visual-state").textContent = message;
+  }
 }
 function showUnavailable(message = "We couldn’t load the latest checks. Trying again shortly.") {
   setSummary("Service status unavailable", "unknown");
@@ -229,7 +234,6 @@ function render(history, state, now = Date.now()) {
       `<div class="diagnostic-content"><p>${esc(name)} · ${esc(status.text)}</p>` +
       `<p>${esc(current?.detail || 'No observation')} · checked ${esc(fmtLocal(st.last_check_utc || st.last_check))}</p>` +
       `${current?.dns_warning ? `<p>${esc(current.dns_warning)}</p>` : ''}` +
-      `${current?.final_url ? `<p>Checked URL: ${esc(current.final_url)}</p>` : ''}` +
       `<div class="uptimes">${values}</div>${cert}</div></details>`);
     return `<article class="service-tile ${status.tone} ${info.size || ''}" aria-labelledby="service-${index}">` +
       `<div><h3 class="tile-heading" id="service-${index}">${esc(info.label)}</h3><p class="tile-description">${esc(info.description)}</p></div>` +

@@ -25,6 +25,20 @@
         <div id="targets" class="service-grid"><p class="muted">Loading services…</p></div>
         <p class="panel-caption" id="service-caption">Each tile shows the latest service check.</p>
       </section>
+      <aside class="panel status-visual" aria-label="Overall monitor state">
+        <div class="status-visual-art unknown" id="status-visual-art" aria-hidden="true">
+          <svg viewBox="0 0 240 240" focusable="false">
+            <circle class="visual-orbit" cx="120" cy="120" r="102"></circle>
+            <circle class="visual-orbit inner" cx="120" cy="120" r="84"></circle>
+            <path class="visual-shield" d="M120 55 169 74v39c0 34-20 59-49 75-29-16-49-41-49-75V74z"></path>
+            <text id="visual-mark" x="120" y="132" text-anchor="middle">?</text>
+            <circle class="visual-node" cx="36" cy="119" r="5"></circle>
+            <circle class="visual-node" cx="204" cy="119" r="5"></circle>
+          </svg>
+        </div>
+        <div><p class="eyebrow">PUBLIC SERVICE MONITOR</p><h2 id="visual-state">Checking status</h2>
+          <p class="muted">Latest outside-in check, summarized without endpoint details.</p></div>
+      </aside>
     </div>
     <details class="monitoring-details" id="monitoring-details">
       <summary id="details-toggle">History &amp; monitoring details <span>Incidents, certificates, retention</span></summary>
