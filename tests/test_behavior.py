@@ -177,7 +177,8 @@ class CycleTests(unittest.TestCase):
             self.assertEqual(state[self.target["name"]]["cert_issuer"], "Example CA")
         self.cycle(True, cert)
         messages = [c.args[0] for c in self.sender.call_args_list]
-        self.assertEqual(sum("TLS cert" in m for m in messages), 2)  # thresholds 21 and 7
+        # At six days remaining, the configured 21, 9, and 7 day thresholds fire.
+        self.assertEqual(sum("TLS cert" in m for m in messages), 3)
         self.assertEqual(sum("TLS inspection unavailable" in m for m in messages), 1)
         self.assertEqual(sum("TLS inspection recovered" in m for m in messages), 1)
 

@@ -2,7 +2,9 @@
 const {test} = require("node:test");
 const assert = require("node:assert/strict");
 const page = require("../docs/status.js");
-const settings = require("../targets.json").settings;
+// Keep these short-window examples independent of the production four-hour cadence.
+const settings = {...require("../targets.json").settings,
+  expected_interval_seconds: 300, delayed_after_seconds: 600, stale_after_seconds: 1200};
 const now = Date.parse("2026-09-19T12:00:00Z");
 const iso = value => new Date(value).toISOString();
 const sample = (time, up, ok = up) => ({ts: iso(time), results: {Example: {confirmed_up: up, ok, detail: "OK"}}});
