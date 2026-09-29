@@ -82,7 +82,7 @@ class ProbeTests(unittest.TestCase):
 
     def test_graphql_auth_boundary(self):
         target = monitor.TARGETS["targets"][3]
-        good = {"data": None, "errors": [{"extensions": {"code": "authentication_required"}, "path": ["__typename"]}]}
+        good = {"data": None, "errors": [{"extensions": {"code": "UNAUTHENTICATED"}, "path": ["__typename"]}]}
         self.assertTrue(monitor.semantic_match(json.dumps(good), target))
         good["errors"][0]["extensions"]["code"] = "internal_error"
         self.assertFalse(monitor.semantic_match(json.dumps(good), target))

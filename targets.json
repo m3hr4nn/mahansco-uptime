@@ -19,7 +19,7 @@
     { "name": "Landing (mahansco.ir)",     "url": "https://mahansco.ir/",                "expect_status": 200, "must_contain": "<title>Mahansco</title>", "check_cert": true },
     { "name": "App SPA (app.mahansco.ir)",  "url": "https://app.mahansco.ir/",            "expect_status": 200, "must_contain": "<div id=\"root\">", "check_cert": true },
     { "name": "App health API", "url": "https://api.mahansco.ir/api/health/", "expect_status": 200, "json_equals": {"status": "healthy"}, "check_cert": true },
-    { "name": "Application access check", "url": "https://api.mahansco.ir/graphql/", "method": "POST", "json_body": {"query": "{ __typename }"}, "expect_status": 200, "json_equals": {"data": null, "errors.0.extensions.code": "authentication_required", "errors.0.path.0": "__typename"}, "check_cert": false },
+    { "name": "Application access check", "url": "https://api.mahansco.ir/graphql/", "method": "POST", "json_body": {"query": "{ __typename }"}, "expect_status": 200, "json_equals": {"data": null, "errors.0.extensions.code": "UNAUTHENTICATED", "errors.0.path.0": "__typename"}, "check_cert": false },
     { "name": "Marketing API", "url": "https://mahansco.ir/wp-json/", "expect_status": 200, "json_equals": {"name": "Mahansco", "url": "https://mahansco.ir"}, "check_cert": false },
     { "name": "robots.txt canary", "url": "https://mahansco.ir/robots.txt", "expect_status": 200, "must_contain": "User-agent:", "check_cert": false }
   ]
