@@ -911,28 +911,28 @@
   },
   "2026-10-04": {
     "Landing (mahansco.ir)": {
-      "up": 1,
-      "total": 1
+      "up": 2,
+      "total": 2
     },
     "App SPA (app.mahansco.ir)": {
-      "up": 1,
-      "total": 1
+      "up": 2,
+      "total": 2
     },
     "App health API": {
-      "up": 1,
-      "total": 1
+      "up": 2,
+      "total": 2
     },
     "Application access check": {
-      "up": 1,
-      "total": 1
+      "up": 2,
+      "total": 2
     },
     "Marketing API": {
-      "up": 1,
-      "total": 1
+      "up": 2,
+      "total": 2
     },
     "robots.txt canary": {
-      "up": 1,
-      "total": 1
+      "up": 2,
+      "total": 2
     }
   }
 }
