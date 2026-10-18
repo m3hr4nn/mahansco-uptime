@@ -1,73 +1,105 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="theme-color" content="#101413" />
-  <meta name="description" content="A simple, live overview of Mahansco service availability." />
-  <title>Mahansco · Service status</title>
-  <link rel="stylesheet" href="status.css" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#07110f">
+  <meta name="description" content="Live, outside-in monitoring for Mahansco public services.">
+  <title>Mahansco · Operations monitor</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="status.css">
 </head>
 <body>
-  <a class="skip-link" href="#main">Skip to service status</a>
+  <a class="skip-link" href="#main">Skip to monitoring dashboard</a>
   <header class="site-header">
-    <a class="brand" href="./" aria-label="Mahansco service status home"><span class="brand-mark" aria-hidden="true">m</span> mahansco<span class="brand-divider">/</span><span class="brand-label">Service status</span></a>
-    <span class="header-note">Public service monitor</span>
+    <a class="brand" href="./" aria-label="Mahansco operations monitor home">
+      <span class="brand-mark" aria-hidden="true">M</span>
+      <span><strong>MAHANSCO</strong><small>PUBLIC OPERATIONS MONITOR</small></span>
+    </a>
+    <div class="header-meta"><span class="live-pulse" aria-hidden="true"></span><span id="updated">Loading latest observation…</span></div>
   </header>
+
   <main id="main">
-    <section class="overview" aria-labelledby="summary">
-      <div class="summary-icon unknown" id="summary-icon" aria-hidden="true">·</div>
-      <div><p class="eyebrow">MAHANSCO UPTIME</p><h1 id="summary" role="status" aria-live="polite">Checking service status…</h1><p id="since" class="muted">Loading the latest checks.</p></div>
-    </section>
-    <div class="dashboard">
-      <section class="panel services" aria-labelledby="services-heading">
-        <div class="panel-heading"><h2 id="services-heading">Our services</h2><span class="muted small" id="service-count">Current status</span></div>
-        <div id="targets" class="service-grid"><p class="muted">Loading services…</p></div>
-        <p class="panel-caption" id="service-caption">Each tile shows the latest service check.</p>
-      </section>
-      <aside class="panel status-visual" aria-label="Overall monitor state">
-        <div class="status-visual-art unknown" id="status-visual-art" aria-hidden="true">
-          <svg viewBox="0 0 240 240" focusable="false">
-            <circle class="visual-orbit" cx="120" cy="120" r="102"></circle>
-            <circle class="visual-orbit inner" cx="120" cy="120" r="84"></circle>
-            <path class="visual-shield" d="M120 55 169 74v39c0 34-20 59-49 75-29-16-49-41-49-75V74z"></path>
-            <text id="visual-mark" x="120" y="132" text-anchor="middle">?</text>
-            <circle class="visual-node" cx="36" cy="119" r="5"></circle>
-            <circle class="visual-node" cx="204" cy="119" r="5"></circle>
-          </svg>
-        </div>
-        <div><p class="eyebrow">PUBLIC SERVICE MONITOR</p><h2 id="visual-state">Checking status</h2>
-          <p class="muted">Latest outside-in check, summarized without endpoint details.</p></div>
-      </aside>
-    </div>
-    <details class="monitoring-details" id="monitoring-details">
-      <summary id="details-toggle">History &amp; monitoring details <span>Incidents, certificates, retention</span></summary>
-      <div class="details-body">
-        <p id="cadence" class="muted"></p>
-        <p class="muted">Action points: renew TLS certificates before expiry; Telegram warns below 10 days remaining. Probe observations are retained for 35 days; availability windows are 24 hours, 7 days and 30 days. Unsent Telegram alerts are kept for up to 48 hours (maximum 50). Git commit history is retained separately.</p>
-        <div class="history-panels">
-          <section class="panel history-panel" aria-labelledby="history-heading">
-            <div class="panel-heading"><h2 id="history-heading">Last 24 hours</h2><span class="eyebrow">CHECK HISTORY</span></div>
-            <div id="history-summary" class="history-summary">Loading history…</div>
-            <div id="timeline" class="timeline" role="group" aria-label="Service checks over the last 24 hours"></div>
-            <div class="timeline-labels"><span>24 hours ago</span><span>Now</span></div>
-            <div class="legend"><span><i class="swatch ok"></i>Passed</span><span><i class="swatch warn"></i>Failed check</span><span><i class="swatch unknown"></i>Missing checks</span></div>
-            <p id="history-note" class="panel-caption">Based on recorded checks.</p>
-          </section>
-          <section class="panel incidents-panel" aria-labelledby="incidents-heading">
-            <div class="panel-heading"><h2 id="incidents-heading">Recent incidents</h2></div>
-            <div id="incidents" class="incidents"><p class="muted">Loading incidents…</p></div>
-          </section>
-        </div>
-        <p class="muted">Availability uses recorded checks only. Percentages are hidden when too many checks are missing. Missing checks do not mean a service was down.</p>
-        <div id="diagnostics"></div>
-        <h2>Monitoring gaps · last 24 hours</h2><div id="gaps" class="muted"></div>
-        <h2>Incident history</h2><p class="muted">Times are in Tehran (UTC+03:30). Incident durations may include gaps in monitoring.</p><div id="incident-history"></div>
+    <section class="hero" aria-labelledby="summary">
+      <div>
+        <p class="eyebrow">OUTSIDE-IN · HTTPS · TEHRAN TIME (UTC+03:30)</p>
+        <h1 id="summary" role="status" aria-live="polite">Reading monitor state…</h1>
+        <p id="since" class="lede">Loading recorded observations.</p>
       </div>
-    </details>
-    <noscript><p class="noscript">JavaScript is needed to show live service status. Please enable it and reload this page.</p></noscript>
+      <div id="freshness-badge" class="freshness-badge unknown"><span aria-hidden="true">◷</span> Unknown freshness</div>
+    </section>
+
+    <section id="summary-grid" class="summary-grid" aria-label="Current service summary">
+      <div class="metric"><span class="metric-label"><i class="signal ok"></i>Healthy</span><strong id="count-healthy">—</strong></div>
+      <div class="metric"><span class="metric-label"><i class="signal bad"></i>Failing</span><strong id="count-failing">—</strong></div>
+      <div class="metric"><span class="metric-label"><i class="signal warn"></i>Pending</span><strong id="count-pending">—</strong></div>
+      <div class="metric"><span class="metric-label"><i class="signal unknown"></i>Unknown</span><strong id="count-unknown">—</strong></div>
+      <div class="metric freshness-metric"><span class="metric-label">Latest cycle</span><strong id="freshness-age">—</strong><small id="freshness-detail">Waiting for data</small></div>
+    </section>
+
+    <section class="panel attention-panel" aria-labelledby="attention-heading">
+      <div class="section-heading">
+        <div><p class="eyebrow">TRIAGE FIRST</p><h2 id="attention-heading">Incidents &amp; warnings</h2></div>
+        <span id="attention-count" class="count-pill">Checking</span>
+      </div>
+      <div id="attention-list" class="attention-list"><p class="loading">Loading active problems…</p></div>
+    </section>
+
+    <section class="services-section" aria-labelledby="services-heading">
+      <div class="section-heading services-title">
+        <div><p class="eyebrow">LATEST OBSERVATIONS</p><h2 id="services-heading">Services</h2></div>
+        <span id="results-count" class="muted">Loading…</span>
+      </div>
+      <div class="toolbar" role="search">
+        <label class="search-box" for="service-search"><span aria-hidden="true">⌕</span><span class="sr-only">Search services</span>
+          <input id="service-search" type="search" autocomplete="off" placeholder="Search service or hostname…">
+        </label>
+        <div id="status-filters" class="filters" aria-label="Filter services by status">
+          <button class="filter active" type="button" data-filter="all" aria-pressed="true">All</button>
+          <button class="filter" type="button" data-filter="attention" aria-pressed="false">Needs attention</button>
+          <button class="filter" type="button" data-filter="healthy" aria-pressed="false">Healthy</button>
+          <button class="filter" type="button" data-filter="unknown" aria-pressed="false">Unknown</button>
+        </div>
+        <button id="reset-filters" class="reset-button" type="button">Reset</button>
+      </div>
+      <div id="targets" class="service-list"><p class="loading">Loading service observations…</p></div>
+      <div id="empty-results" class="empty-results" hidden><strong>No services match</strong><p>Try another name or clear the status filter.</p><button type="button" id="empty-reset">Clear filters</button></div>
+    </section>
+
+    <section class="history-section" aria-labelledby="history-heading">
+      <div class="section-heading">
+        <div><p class="eyebrow">RECORDED EVIDENCE</p><h2 id="history-heading">Fleet history</h2></div>
+        <div id="range-controls" class="range-controls" aria-label="History time range">
+          <button type="button" data-range="1" class="active" aria-pressed="true">24h</button>
+          <button type="button" data-range="7" aria-pressed="false">7d</button>
+          <button type="button" data-range="30" aria-pressed="false">30d</button>
+        </div>
+      </div>
+      <div class="panel fleet-panel">
+        <div id="history-summary" class="history-summary">Loading history…</div>
+        <div id="timeline" class="timeline" role="group" aria-label="Observed fleet status over time"></div>
+        <div class="timeline-labels"><span id="range-start">Range start</span><span>Latest observation</span></div>
+        <div class="legend"><span><i class="bar ok"></i>Passed</span><span><i class="bar warn"></i>Failed probe</span><span><i class="bar unknown"></i>Missing</span></div>
+        <p id="history-note" class="note"></p>
+      </div>
+    </section>
+
+    <section class="panel methodology" aria-labelledby="methodology-heading">
+      <details>
+        <summary id="methodology-heading">How to read this monitor</summary>
+        <div class="methodology-body">
+          <p id="cadence"></p>
+          <p><strong>Observed availability</strong> uses recorded checks only. Missing slots lower coverage and are never counted as healthy. Percentages are withheld when coverage is insufficient.</p>
+          <p><strong>Confirmed outage</strong> follows the monitor’s configured consecutive-failure rule. A pending failure remains distinct. Incident duration is bounded by observations and may include monitoring gaps.</p>
+          <div><h3>Monitoring gaps</h3><div id="gaps">Loading…</div></div>
+          <div><h3>Retained incident history</h3><div id="incident-history">Loading…</div></div>
+        </div>
+      </details>
+    </section>
+
+    <noscript><p class="noscript">JavaScript is required to read the monitor’s JSON observations.</p></noscript>
   </main>
-  <footer><span>Mahansco <span class="footer-dot">·</span> <span id="updated">Waiting for the latest update</span></span><a href="https://github.com/m3hr4nn/mahansco-uptime">View source <span aria-hidden="true">↗</span></a></footer>
+  <footer><span>Mahansco · public observations, not a continuous uptime claim</span><a href="https://github.com/m3hr4nn/mahansco-uptime">Source ↗</a></footer>
   <script src="status.js"></script>
 </body>
 </html>

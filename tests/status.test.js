@@ -7,7 +7,8 @@ const settings = {...require("../targets.json").settings,
   expected_interval_seconds: 300, delayed_after_seconds: 600, stale_after_seconds: 1200};
 const now = Date.parse("2026-09-19T12:00:00Z");
 const iso = value => new Date(value).toISOString();
-const sample = (time, up, ok = up) => ({ts: iso(time), results: {Example: {confirmed_up: up, ok, detail: "OK"}}});
+const sample = (time, up, ok = up) => ({ts: iso(time), results: {Example: {confirmed_up: up, ok,
+  detail: ok ? "OK" : "Response failed semantic assertion", status_code: 200, latency_ms: 42}}});
 test("freshness boundary values, missing and future observations", () => {
   for (const [seconds, expected] of [[0, "fresh"], [600, "fresh"], [601, "delayed"],
     [1200, "delayed"], [1201, "stale"]]) {
@@ -39,6 +40,7 @@ test("single raw failure is not an incident; confirmed down starts immediately a
   assert.equal(page.incidentsFor(history.slice(0, 3), "Example").length, 1);
   const incidents = page.incidentsFor(history, "Example");
   assert.equal(incidents.length, 1);
+  assert.equal(incidents[0].firstObserved, now + 300000);
   assert.equal(incidents[0].end - incidents[0].start, 600000);
   assert.equal(incidents[0].ongoing, false);
 });
@@ -61,7 +63,11 @@ test("Tehran legacy timestamps parse as UTC instants", () => {
 });
 function documentStub() {
   const elements = {};
-  global.document = {getElementById(id) { return elements[id] ||= {textContent: "", innerHTML: ""}; }};
+  global.document = {
+    activeElement: null,
+    getElementById(id) { return elements[id] ||= {textContent: "", innerHTML: "", hidden: false}; },
+    querySelectorAll() { return []; }
+  };
   return elements;
 }
 test("render never calls stale, missing, or mismatched cycles healthy", () => {
@@ -73,7 +79,7 @@ test("render never calls stale, missing, or mismatched cycles healthy", () => {
   assert.match(elements.summary.textContent, /Waiting for a fresh update/);
   assert.doesNotMatch(elements.summary.textContent, /operational/);
   assert.match(elements.targets.innerHTML, /Previously available/);
-  assert.doesNotMatch(elements.targets.innerHTML, /service-tile ok/);
+  assert.doesNotMatch(elements.targets.innerHTML, /service-card ok/);
   page.render([], state, now);
   assert.match(elements.summary.textContent, /unavailable/);
   state._meta.last_run_utc = iso(now);
@@ -96,14 +102,17 @@ test("remote names, details, URLs and certificate metadata are escaped", () => {
   page.render(history, state, now);
   assert.doesNotMatch(elements.targets.innerHTML, /<img/);
   assert.match(elements.targets.innerHTML, /&lt;img/);
-  assert.doesNotMatch(elements.diagnostics.innerHTML, /<img/);
-  assert.match(elements.diagnostics.innerHTML, /&lt;img/);
+  assert.doesNotMatch(elements["attention-list"].innerHTML, /<img/);
   assert.equal(page.esc("'&\"<>"), "&#39;&amp;&quot;&lt;&gt;");
 });
-test("tiles distinguish a confirmed outage, a pending check, and old results", () => {
-  assert.deepEqual(page.tileStatus({confirmed_up: false, ok: false}, "fresh"), {tone: "bad", text: "Unavailable"});
-  assert.deepEqual(page.tileStatus({confirmed_up: true, ok: false}, "fresh"), {tone: "warn", text: "Checking an issue"});
-  assert.deepEqual(page.tileStatus({confirmed_up: true, ok: true}, "delayed"), {tone: "unknown", text: "Previously available"});
+test("service states distinguish confirmed outage, pending, healthy, stale, and missing", () => {
+  assert.deepEqual(page.tileStatus({confirmed_up: false, ok: false}, "fresh"),
+    {tone: "bad", text: "Confirmed outage", group: "attention"});
+  assert.deepEqual(page.tileStatus({confirmed_up: true, ok: false}, "fresh"),
+    {tone: "warn", text: "Pending failure", group: "attention"});
+  assert.deepEqual(page.tileStatus({confirmed_up: true, ok: true}, "delayed"),
+    {tone: "unknown", text: "Previously available", group: "unknown"});
+  assert.equal(page.tileStatus({confirmed_up: true, ok: true}, "fresh").group, "healthy");
   assert.equal(page.tileStatus({confirmed_up: false}, "stale").tone, "unknown");
   assert.equal(page.tileStatus(undefined, "fresh").tone, "unknown");
 });
@@ -128,10 +137,20 @@ test("unknown cycles clear all prior data and do not leave a healthy history sum
   assert.match(elements.summary.textContent, /unavailable/);
   assert.doesNotMatch(elements.targets.innerHTML, /Operational/);
   assert.equal(elements.timeline.innerHTML, "");
-  assert.equal(elements.diagnostics.innerHTML, "");
-  assert.match(elements.incidents.innerHTML, /unavailable/);
+  assert.match(elements["attention-list"].innerHTML, /unavailable/);
   assert.match(elements["history-summary"].innerHTML, /unavailable/);
   assert.match(elements.updated.textContent, /Waiting/);
+});
+test("search matches service names and hostnames and composes with status filters", () => {
+  const items = [
+    {name: "Landing", label: "Website", hostname: "mahansco.ir", group: "healthy"},
+    {name: "App health API", label: "App API", hostname: "api.mahansco.ir", group: "attention"},
+    {name: "Unknown", label: "Legacy", hostname: "old.example", group: "unknown"}
+  ];
+  assert.deepEqual(page.filterServices(items, "API", "all").map(item => item.name), ["App health API"]);
+  assert.deepEqual(page.filterServices(items, "mahansco.ir", "attention").map(item => item.name), ["App health API"]);
+  assert.equal(page.filterServices(items, "missing", "all").length, 0);
+  assert.equal(page.filterServices(items, "", "all").length, 3);
 });
 test("failed fetch schedules an automatic retry and a successful retry restores service status", async () => {
   const elements = documentStub();

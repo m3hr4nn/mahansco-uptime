@@ -1,0 +1,33 @@
+pipeline {
+  agent any
+  triggers { cron('H H/4 * * *') }
+  options { disableConcurrentBuilds() }
+  environment {
+    STATE_BRANCH = 'main'
+    STATE_REPO_URL = credentials('independent-uptime-state-repo-url')
+  }
+  stages {
+    stage('Restore observations') {
+      steps {
+        sh 'mkdir -p runtime'
+        sh 'git clone --depth 1 --branch "$STATE_BRANCH" "$STATE_REPO_URL" runtime/data'
+      }
+    }
+    stage('Run one cycle') {
+      steps {
+        sh 'docker build -t independent-uptime:${BUILD_NUMBER} .'
+        sh 'docker run --rm -v "$WORKSPACE/runtime/data:/data" independent-uptime:${BUILD_NUMBER} --config /app/examples/targets.example.json --data-dir /data'
+      }
+    }
+    stage('Persist observations') {
+      steps {
+        sh 'bash scripts/persist-external-state.sh runtime/data "$STATE_BRANCH"'
+      }
+    }
+  }
+  post {
+    always {
+      archiveArtifacts artifacts: 'runtime/data/*.json', fingerprint: true
+    }
+  }
+}

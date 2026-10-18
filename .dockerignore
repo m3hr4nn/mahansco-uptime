@@ -1,0 +1,6 @@
+.git
+.github
+runtime
+__pycache__
+*.pyc
+optimization.md

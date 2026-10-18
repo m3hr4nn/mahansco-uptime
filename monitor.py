@@ -6,6 +6,7 @@ crossings, plus a configured digest). Python standard library only -- no pip
 installs: urllib, ssl, socket, json, datetime.
 """
 
+import argparse
 import datetime
 from concurrent.futures import ThreadPoolExecutor
 import html
@@ -16,7 +17,6 @@ import os
 import re
 import socket
 import ssl
-import sys
 import tempfile
 import time
 import urllib.error
@@ -66,7 +66,7 @@ def validate_config(config):
             raise ValueError(f"targets[{index}] must be an object")
         name = target.get("name")
         url = target.get("url")
-        allowed = {"name", "url", "expect_status", "must_contain", "check_cert", "expected_ips",
+        allowed = {"name", "url", "expect_status", "must_contain", "check_cert", "expected_ips", "check_mode",
                    "method", "json_body", "json_equals", "allow_cross_host_redirects"}
         if set(target) - allowed:
             raise ValueError(f"targets[{index}] has unsupported keys: {sorted(set(target) - allowed)}")
@@ -104,7 +104,9 @@ def validate_config(config):
                or type(value) not in (str, bool, int, float, type(None))
                or (type(value) is float and not math.isfinite(value)) for path, value in rules.items()):
             raise ValueError(f"targets[{index}].json_equals requires dotted paths and scalar values")
-        if not target.get("must_contain") and not rules:
+        if target.get("check_mode", "semantic") not in ("semantic", "reachability"):
+            raise ValueError(f"targets[{index}].check_mode must be semantic or reachability")
+        if target.get("check_mode", "semantic") == "semantic" and not target.get("must_contain") and not rules:
             raise ValueError(f"targets[{index}] requires a body or JSON semantic assertion")
         names.add(name)
 
@@ -127,14 +129,18 @@ def public_url(url):
         return False
 
 
-with open(os.path.join(ROOT, "targets.json"), encoding="utf-8") as targets_file:
+DEFAULT_CONFIG_PATH = os.path.join(ROOT, "targets.json")
+DEFAULT_DATA_DIR = os.path.join(ROOT, "docs")
+
+with open(DEFAULT_CONFIG_PATH, encoding="utf-8") as targets_file:
     TARGETS = json.load(targets_file)
 validate_config(TARGETS)
 SETTINGS = TARGETS["settings"]
 
-STATE_PATH = os.path.join(ROOT, "docs", "state.json")
-HISTORY_PATH = os.path.join(ROOT, "docs", "history.json")
-ROLLUP_PATH = os.path.join(ROOT, "docs", "uptime_daily.json")
+STATE_PATH = os.path.join(DEFAULT_DATA_DIR, "state.json")
+HISTORY_PATH = os.path.join(DEFAULT_DATA_DIR, "history.json")
+ROLLUP_PATH = os.path.join(DEFAULT_DATA_DIR, "uptime_daily.json")
+NOTIFICATIONS_ENABLED = True
 
 
 # Iran Standard Time is a fixed UTC+03:30 (no DST since 2022). All human-facing
@@ -481,7 +487,10 @@ def retain_history(history, now):
 
 def public_config():
     return {"schema_version": 2, "settings": SETTINGS,
-            "targets": [{"name": t["name"]} for t in TARGETS["targets"]]}
+            "targets": [{"name": t["name"],
+                         "hostname": urllib.parse.urlsplit(t["url"]).hostname,
+                         "check_kind": t.get("check_mode", "semantic")}
+                        for t in TARGETS["targets"]]}
 
 
 def main():
@@ -495,7 +504,7 @@ def main():
 
     # On-demand delivery test (workflow_dispatch input). Confirms the bot token,
     # chat id, and bot-admin status end-to-end without needing a real outage.
-    if os.environ.get("TEST_PING", "").lower() == "true":
+    if NOTIFICATIONS_ENABLED and os.environ.get("TEST_PING", "").lower() == "true":
         now = fmt_local(utcnow())
         ok = telegram(f"✅ <b>Test ping</b> — mahansco-uptime is wired up correctly.\n<i>{now}</i>")
         print("Test ping delivered." if ok else "Test ping FAILED — see error above.")
@@ -503,10 +512,15 @@ def main():
             raise SystemExit(1)
 
     meta = state.get("_meta", {})
+    # Custom/local runs use a separate, ephemeral notification boundary. This
+    # keeps Telegram queue behavior unchanged in production while ensuring a
+    # local run neither loads nor persists notification work.
+    notification_meta = meta if NOTIFICATIONS_ENABLED else {}
     active_names = {t["name"] for t in TARGETS["targets"]}
     state = {key: value for key, value in state.items() if key in active_names or key == "_meta"}
     state["_meta"] = meta
-    flush_notifications(meta)
+    if NOTIFICATIONS_ENABLED:
+        flush_notifications(notification_meta)
     nowdt = utcnow()
     now = fmt_local(nowdt)
     today = nowdt.astimezone(TEHRAN).strftime("%Y-%m-%d")
@@ -530,10 +544,10 @@ def main():
 
         # Alert only on confirmed transitions -- never "still up".
         if is_down and not was_down:
-            queue_notification(meta, f"\U0001F534 <b>DOWN</b> — {telegram_escape(name)}\n"
+            queue_notification(notification_meta, f"\U0001F534 <b>DOWN</b> — {telegram_escape(name)}\n"
                                       f"{telegram_escape(detail)}\n<i>{telegram_escape(now)}</i>")
         elif was_down and ok:
-            queue_notification(meta, f"\U0001F7E2 <b>RECOVERED</b> — {telegram_escape(name)}\n"
+            queue_notification(notification_meta, f"\U0001F7E2 <b>RECOVERED</b> — {telegram_escape(name)}\n"
                                       f"{telegram_escape(detail)}\n<i>{telegram_escape(now)}</i>")
 
         if t.get("expected_ips") and detail.startswith("DNS "):
@@ -541,10 +555,10 @@ def main():
         dns_mismatch = bool(dns_warning)
         previous_dns_mismatch = bool(prev.get("dns_mismatch"))
         if dns_mismatch and not previous_dns_mismatch:
-            queue_notification(meta, f"\U0001F7E1 <b>DNS warning</b> — {telegram_escape(name)}\n"
+            queue_notification(notification_meta, f"\U0001F7E1 <b>DNS warning</b> — {telegram_escape(name)}\n"
                                       f"{telegram_escape(dns_warning)}\n<i>{telegram_escape(now)}</i>")
         elif t.get("expected_ips") and previous_dns_mismatch and not dns_mismatch:
-            queue_notification(meta, f"\U0001F7E2 <b>DNS recovered</b> — {telegram_escape(name)}\n"
+            queue_notification(notification_meta, f"\U0001F7E2 <b>DNS recovered</b> — {telegram_escape(name)}\n"
                                       f"DNS now matches the configured address.\n"
                                       f"<i>{telegram_escape(now)}</i>")
 
@@ -562,7 +576,7 @@ def main():
             host = urllib.parse.urlparse(t["url"]).hostname
             if ci:
                 if prev.get("cert_failure_streak", 0) >= SETTINGS["cert_failure_threshold"]:
-                    queue_notification(meta, f"🟢 <b>TLS inspection recovered</b> — {telegram_escape(name)}")
+                    queue_notification(notification_meta, f"🟢 <b>TLS inspection recovered</b> — {telegram_escape(name)}")
                 new_state["cert_failure_streak"] = 0
                 new_state["cert_inspected_utc"] = nowdt.isoformat()
                 days = ci["days_left"]
@@ -573,7 +587,7 @@ def main():
                 for thr in SETTINGS["cert_warn_days"]:
                     crossed_key = f"cert_warned_{thr}"
                     if days <= thr and not prev.get(crossed_key):
-                        queue_notification(meta, f"\U0001F7E1 <b>TLS cert</b> for "
+                        queue_notification(notification_meta, f"\U0001F7E1 <b>TLS cert</b> for "
                                              f"{telegram_escape(host)} expires in "
                                              f"<b>{days} days</b> (on {telegram_escape(ci['not_after'])}, "
                                              f"issuer {telegram_escape(ci['issuer'])})")
@@ -586,7 +600,7 @@ def main():
                 streak = prev.get("cert_failure_streak", 0) + 1
                 new_state["cert_failure_streak"] = streak
                 if streak == SETTINGS["cert_failure_threshold"]:
-                    queue_notification(meta, f"🟡 <b>TLS inspection unavailable</b> — {telegram_escape(name)}")
+                    queue_notification(notification_meta, f"🟡 <b>TLS inspection unavailable</b> — {telegram_escape(name)}")
                 print(f"TLS inspection failed: {type(cert_error).__name__}")
 
         state[name] = new_state
@@ -626,8 +640,8 @@ def main():
             due = True
     force_digest = os.environ.get("FORCE_DIGEST", "").lower() == "true"
     digest_pending = any(isinstance(event, dict) and event.get("kind") == "digest"
-                         for event in meta.get("pending_notifications", []))
-    if (force_digest or due) and not digest_pending:
+                         for event in notification_meta.get("pending_notifications", []))
+    if NOTIFICATIONS_ENABLED and (force_digest or due) and not digest_pending:
         up = sum(1 for r in sample["results"].values() if r["confirmed_up"])
         total = len(sample["results"])
         label = f"{every}-hour status digest"
@@ -636,12 +650,13 @@ def main():
             mark = "\U0001F7E1" if not r["ok"] and r["confirmed_up"] else "\U0001F7E2" if r["confirmed_up"] else "\U0001F534"
             lat = f" · {r['latency_ms']}ms" if r["latency_ms"] else ""
             lines.append(f"{mark} {telegram_escape(n)}{lat}")
-        queue_notification(meta, "\n".join(lines), kind="digest", advance_digest_clock=due)
-        meta["pending_notifications"][-1]["digest_utc"] = nowdt.isoformat()
+        queue_notification(notification_meta, "\n".join(lines), kind="digest", advance_digest_clock=due)
+        notification_meta["pending_notifications"][-1]["digest_utc"] = nowdt.isoformat()
 
     # New transition, DNS, certificate, and digest events are retried before state
     # is persisted. Failed events remain in _meta.pending_notifications for the next run.
-    flush_notifications(meta)
+    if NOTIFICATIONS_ENABLED:
+        flush_notifications(notification_meta)
 
     meta.update({"last_run_utc": utcnow().isoformat(), "config": public_config(),
                  "run_id": os.environ.get("GITHUB_RUN_ID"), "commit": os.environ.get("GITHUB_SHA"),
@@ -652,11 +667,57 @@ def main():
     dump_json_atomic(STATE_PATH, state)
 
 
-if __name__ == "__main__":
-    if sys.argv[1:] == ["--validate"]:
-        validate_config(TARGETS)
-        print("Configuration valid")
-    elif sys.argv[1:]:
-        raise SystemExit("Usage: monitor.py [--validate]")
+def url_config(url):
+    """Build a safe, generic HTTPS reachability check for URL-only onboarding."""
+    if not public_url(url):
+        raise ValueError("--url must be a public HTTPS URL without credentials, query, or fragment")
+    hostname = urllib.parse.urlsplit(url).hostname
+    settings = dict(SETTINGS)
+    settings.update({"expected_interval_seconds": 300, "delayed_after_seconds": 600,
+                     "stale_after_seconds": 1200, "digest_every_hours": 24})
+    return {"settings": settings, "targets": [{"name": hostname, "url": url,
+             "expect_status": 200, "check_cert": True, "check_mode": "reachability"}]}
+
+
+def configure_runtime(config_path=None, data_dir=None, url=None, notifications=None):
+    """Select an isolated configuration and dataset before a monitoring cycle."""
+    global TARGETS, SETTINGS, STATE_PATH, HISTORY_PATH, ROLLUP_PATH, NOTIFICATIONS_ENABLED
+    if url:
+        TARGETS = url_config(url)
+    elif config_path:
+        with open(config_path, encoding="utf-8") as config_file:
+            TARGETS = json.load(config_file)
     else:
-        main()
+        with open(DEFAULT_CONFIG_PATH, encoding="utf-8") as config_file:
+            TARGETS = json.load(config_file)
+    validate_config(TARGETS)
+    SETTINGS = TARGETS["settings"]
+    selected_data_dir = os.path.abspath(data_dir or DEFAULT_DATA_DIR)
+    os.makedirs(selected_data_dir, exist_ok=True)
+    STATE_PATH = os.path.join(selected_data_dir, "state.json")
+    HISTORY_PATH = os.path.join(selected_data_dir, "history.json")
+    ROLLUP_PATH = os.path.join(selected_data_dir, "uptime_daily.json")
+    custom_run = bool(url or config_path or data_dir)
+    NOTIFICATIONS_ENABLED = bool(notifications) if notifications is not None else not custom_run
+
+
+def cli(argv=None):
+    parser = argparse.ArgumentParser(description="Run one Mahansco Uptime monitoring cycle")
+    source = parser.add_mutually_exclusive_group()
+    source.add_argument("--config", help="target configuration JSON (defaults to targets.json)")
+    source.add_argument("--url", help="monitor one public HTTPS URL with generic defaults")
+    parser.add_argument("--data-dir", help="isolated directory for state, history, and rollup JSON")
+    parser.add_argument("--notifications", action="store_true",
+                        help="enable Telegram for a custom run (disabled by default)")
+    parser.add_argument("--validate", action="store_true", help="validate configuration without probing")
+    args = parser.parse_args(argv)
+    configure_runtime(args.config, args.data_dir, args.url,
+                      True if args.notifications else None)
+    if args.validate:
+        print("Configuration valid")
+        return
+    main()
+
+
+if __name__ == "__main__":
+    cli()

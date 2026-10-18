@@ -58,6 +58,22 @@ class ConfigTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             monitor.validate_config(config)
 
+    def test_url_only_config_is_explicit_generic_reachability(self):
+        config = monitor.url_config("https://example.com/")
+        monitor.validate_config(config)
+        self.assertEqual(config["targets"], [{"name": "example.com", "url": "https://example.com/",
+                                              "expect_status": 200, "check_cert": True,
+                                              "check_mode": "reachability"}])
+        for unsafe in ("http://example.com/", "https://localhost/", "https://example.com/?token=x"):
+            with self.subTest(url=unsafe), self.assertRaises(ValueError):
+                monitor.url_config(unsafe)
+
+    def test_semantic_mode_still_requires_an_assertion(self):
+        config = copy.deepcopy(monitor.TARGETS)
+        config["targets"][0].pop("must_contain")
+        with self.assertRaisesRegex(ValueError, "semantic assertion"):
+            monitor.validate_config(config)
+
 
 class ProbeTests(unittest.TestCase):
     def setUp(self):
@@ -209,6 +225,41 @@ class CycleTests(unittest.TestCase):
 
 
 class PersistenceAndNotificationTests(unittest.TestCase):
+    def test_custom_data_path_persists_successive_runs_without_notifications(self):
+        original = {name: getattr(monitor, name) for name in
+                    ("TARGETS", "SETTINGS", "STATE_PATH", "HISTORY_PATH", "ROLLUP_PATH", "NOTIFICATIONS_ENABLED")}
+        self.addCleanup(lambda: [setattr(monitor, name, value) for name, value in original.items()])
+        with tempfile.TemporaryDirectory() as folder:
+            monitor.configure_runtime(url="https://example.com/", data_dir=folder)
+            self.assertFalse(monitor.NOTIFICATIONS_ENABLED)
+            probe = ((True, "OK 12ms", 12, 200, 2, None, "https://example.com/"),
+                     {"days_left": 90, "not_after": "2026-12-18", "not_before": "2026-09-18", "issuer": "Example CA"}, None)
+            times = iter([dt.datetime(2026, 9, 19, 12, 0, tzinfo=dt.timezone.utc),
+                          dt.datetime(2026, 9, 19, 12, 0, tzinfo=dt.timezone.utc),
+                          dt.datetime(2026, 9, 19, 12, 5, tzinfo=dt.timezone.utc),
+                          dt.datetime(2026, 9, 19, 12, 5, tzinfo=dt.timezone.utc)])
+            with patch.object(monitor, "probe_target", return_value=probe), \
+                    patch.object(monitor, "utcnow", side_effect=lambda: next(times)), \
+                    patch.object(monitor, "telegram") as sender:
+                monitor.main()
+                monitor.main()
+            sender.assert_not_called()
+            history = monitor.load_json(Path(folder) / "history.json", [])
+            state = monitor.load_json(Path(folder) / "state.json", {})
+            self.assertEqual(len(history), 2)
+            self.assertNotIn("pending_notifications", state["_meta"])
+            self.assertEqual(state["_meta"]["config"]["targets"][0]["check_kind"], "reachability")
+            self.assertTrue(all((Path(folder) / name).exists() for name in
+                                ("state.json", "history.json", "uptime_daily.json")))
+
+    def test_default_runtime_keeps_production_paths_and_notifications(self):
+        original = {name: getattr(monitor, name) for name in
+                    ("TARGETS", "SETTINGS", "STATE_PATH", "HISTORY_PATH", "ROLLUP_PATH", "NOTIFICATIONS_ENABLED")}
+        self.addCleanup(lambda: [setattr(monitor, name, value) for name, value in original.items()])
+        monitor.configure_runtime()
+        self.assertTrue(monitor.NOTIFICATIONS_ENABLED)
+        self.assertEqual(Path(monitor.STATE_PATH), Path(monitor.ROOT) / "docs" / "state.json")
+
     def test_queue_bounded_and_expired(self):
         meta = {}
         with patch.dict(monitor.SETTINGS, notification_max_count=3):
