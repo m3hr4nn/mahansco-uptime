@@ -1,0 +1,27 @@
+{
+  "settings": {
+    "timeout_seconds": 20,
+    "latency_warn_ms": 3000,
+    "failures_before_down": 2,
+    "cert_warn_days": [21, 9, 7, 1],
+    "digest_every_hours": 24,
+    "expected_interval_seconds": 14400,
+    "delayed_after_seconds": 18000,
+    "stale_after_seconds": 28800,
+    "refresh_seconds": 60,
+    "retention_days": 35,
+    "minimum_coverage": 0.9,
+    "notification_max_count": 50,
+    "notification_max_age_hours": 48,
+    "cert_failure_threshold": 3
+  },
+  "targets": [
+    {
+      "name": "Example website",
+      "url": "https://example.com/",
+      "expect_status": 200,
+      "must_contain": "Example Domain",
+      "check_cert": true
+    }
+  ]
+}

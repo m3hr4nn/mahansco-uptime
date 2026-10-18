@@ -1,6 +1,8 @@
 /* Public rendering and pure calculations. CommonJS exports support offline tests. */
 "use strict";
 const DAY = 86400000;
+const UI = {query: "", filter: "all", rangeDays: 1, model: null};
+
 function esc(value) {
   return String(value ?? "").replace(/[&<>"']/g, c => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
@@ -12,10 +14,29 @@ function parseTs(ts) {
 }
 function fmtLocal(value) {
   const date = parseTs(value);
-  return Number.isFinite(+date) ? new Date(+date + 210 * 60000).toISOString().slice(0, 19)
+  return Number.isFinite(+date) ? new Date(+date + 210 * 60000).toISOString().slice(0, 16)
     .replace("T", " ") + " UTC+03:30" : "unknown";
 }
-function age(ms) { return `${Math.max(0, Math.floor(ms / 60000))} min`; }
+function shortLocal(value) {
+  const date = parseTs(value);
+  return Number.isFinite(+date) ? new Date(+date + 210 * 60000).toISOString().slice(5, 16)
+    .replace("T", " ") : "unknown";
+}
+function age(ms) {
+  const minutes = Math.max(0, Math.floor(ms / 60000));
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+function duration(ms) {
+  const minutes = Math.max(0, Math.floor(ms / 60000));
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 48) return `${hours} hr`;
+  return `${Math.floor(hours / 24)} days`;
+}
 function freshness(lastRun, settings, now = Date.now()) {
   const elapsed = now - +parseTs(lastRun);
   if (!lastRun || !settings || !Number.isFinite(elapsed) || elapsed < 0 ||
@@ -26,7 +47,6 @@ function freshness(lastRun, settings, now = Date.now()) {
   return "fresh";
 }
 function confirmedUp(result) {
-  // Never infer a confirmed outage from legacy raw observations.
   return typeof result?.confirmed_up === "boolean" ? result.confirmed_up : null;
 }
 function availability(history, name, windowMs, settings, now = Date.now()) {
@@ -37,7 +57,6 @@ function availability(history, name, windowMs, settings, now = Date.now()) {
     const time = +parseTs(sample.ts), result = sample.results[name];
     if (!result || time <= cutoff || time > now || sample.boundary_anchor) continue;
     const slot = Math.min(expected - 1, Math.ceil((time - cutoff) / interval) - 1);
-    // Extra manual checks cannot conceal missing scheduled observations.
     slots.set(slot, (slots.get(slot) ?? true) && result.ok === true);
   }
   const observed = slots.size, successful = [...slots.values()].filter(Boolean).length;
@@ -47,20 +66,30 @@ function availability(history, name, windowMs, settings, now = Date.now()) {
 }
 function incidentsFor(history, name) {
   const incidents = [];
-  let active = null;
+  let active = null, pending = null;
   for (const sample of history) {
     const result = sample.results[name];
     if (!result) continue;
     const up = confirmedUp(result), observed = +parseTs(sample.ts);
     if (up === false) {
-      if (!active) active = {name, start: result.incident_started_utc ? +parseTs(result.incident_started_utc) : observed,
-        end: observed, ongoing: true, boundary: !!sample.boundary_anchor || !result.incident_started_utc};
+      if (!active) active = {name,
+        start: result.incident_started_utc ? +parseTs(result.incident_started_utc) : observed,
+        firstObserved: pending?.observed || observed, end: observed, ongoing: true,
+        firstDetail: pending?.detail || result.detail, latestDetail: result.detail,
+        boundary: !!sample.boundary_anchor || !result.incident_started_utc};
       active.end = observed;
+      active.latestDetail = result.detail || active.latestDetail;
     } else if (up === true && active) {
-      active.end = observed; // duration ends at recovery, not at the last failed check
+      active.end = observed;
       active.ongoing = false;
+      active.recoveryDetail = result.detail;
       incidents.push(active);
       active = null;
+      pending = null;
+    } else if (up === true && result.ok === false) {
+      pending = {observed, detail: result.detail};
+    } else if (up === true) {
+      pending = null;
     }
   }
   if (active) incidents.push(active);
@@ -76,69 +105,71 @@ function gapsFor(history, name, settings, now = Date.now(), windowMs = DAY) {
   }
   return gaps;
 }
-function availabilityHtml(value, label) {
-  const result = value.percent === null ? "Insufficient data" : `${value.percent.toFixed(2)}% observed availability`;
-  return `<span>${esc(label)} <b>${result}</b><br>${(value.coverage * 100).toFixed(1)}% coverage ` +
-    `(${value.observed}/${value.expected} slots; ${value.missing} missing)</span>`;
-}
-// Public labels describe what is checked, without implying authenticated workflows are tested.
 const SERVICE_LABELS = {
-  "Landing (mahansco.ir)": {label: "Website", description: "mahansco.ir", size: "primary", order: 0},
-  "App SPA (app.mahansco.ir)": {label: "Web app", description: "app.mahansco.ir", size: "primary", order: 1},
-  "App health API": {label: "App API", description: "Application health", order: 2},
-  "Application access check": {label: "Application access", description: "Public API check", size: "supporting", order: 4},
-  "Marketing API": {label: "Website API", description: "Website content", size: "supporting", order: 5},
-  "robots.txt canary": {label: "Site access", description: "Search engine access file", size: "supporting", order: 6}
+  "Landing (mahansco.ir)": {label: "Website", description: "Marketing website", hostname: "mahansco.ir", order: 0},
+  "App SPA (app.mahansco.ir)": {label: "Web app", description: "Customer application shell", hostname: "app.mahansco.ir", order: 1},
+  "App health API": {label: "App API", description: "Application health response", hostname: "api.mahansco.ir", order: 2},
+  "Application access check": {label: "Application access", description: "Unauthenticated access boundary", hostname: "api.mahansco.ir", order: 3},
+  "Marketing API": {label: "Website API", description: "Published content API", hostname: "mahansco.ir", order: 4},
+  "robots.txt canary": {label: "Site access", description: "Public robots canary", hostname: "mahansco.ir", order: 5}
 };
-function serviceInfo(name) {
-  return Object.hasOwn(SERVICE_LABELS, name) ? SERVICE_LABELS[name] : {label: name, description: "Service check", order: 7};
-}
-function humanAge(ms) {
-  const minutes = Math.max(0, Math.floor(ms / 60000));
-  if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes} min ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} ${hours === 1 ? 'hour' : 'hours'} ago`;
-  const days = Math.floor(hours / 24);
-  return `${days} ${days === 1 ? 'day' : 'days'} ago`;
+function serviceInfo(name, target = {}) {
+  const known = Object.hasOwn(SERVICE_LABELS, name) ? SERVICE_LABELS[name] : {};
+  return {label: known.label || name, description: known.description || "Generic HTTPS reachability",
+    hostname: target.hostname || known.hostname || "", order: known.order ?? 99};
 }
 function tileStatus(current, fresh) {
   const up = confirmedUp(current);
-  if (up === null || fresh === "unknown") return {tone: "unknown", text: "Status unavailable"};
-  if (fresh !== "fresh") return {tone: "unknown", text: current.ok === false && up ? "Last check failed" : up ? "Previously available" : "Previously unavailable"};
-  if (!up) return {tone: "bad", text: "Unavailable"};
-  if (current.ok === false) return {tone: "warn", text: "Checking an issue"};
-  return {tone: "ok", text: "Operational"};
+  if (up === null || fresh === "unknown") return {tone: "unknown", text: "Status unavailable", group: "unknown"};
+  if (fresh !== "fresh") return {tone: "unknown",
+    text: current?.ok === false && up ? "Last check failed" : up ? "Previously available" : "Previously unavailable",
+    group: "unknown"};
+  if (!up) return {tone: "bad", text: "Confirmed outage", group: "attention"};
+  if (current.ok === false) return {tone: "warn", text: "Pending failure", group: "attention"};
+  return {tone: "ok", text: "Healthy", group: "healthy"};
 }
-function hourlyHealth(history, names, settings, now) {
-  const interval = settings.expected_interval_seconds * 1000, bucketSize = Math.max(DAY / 24, interval);
-  const cutoff = now - DAY, count = Math.ceil(DAY / bucketSize);
-  const buckets = Array.from({length: count}, (_, i) => ({start: cutoff + i * bucketSize,
-    end: Math.min(now, cutoff + (i + 1) * bucketSize), slots: new Map(), failed: false}));
+function filterServices(items, query = "", filter = "all") {
+  const needle = query.trim().toLocaleLowerCase();
+  return items.filter(item => (!needle || `${item.name} ${item.label} ${item.hostname}`.toLocaleLowerCase().includes(needle)) &&
+    (filter === "all" || item.group === filter));
+}
+function historyBuckets(history, names, windowMs, settings, now = Date.now(), maxBars = 48) {
+  const interval = settings.expected_interval_seconds * 1000;
+  const expected = Math.ceil(windowMs / interval);
+  const bucketSlots = Math.max(1, Math.ceil(expected / maxBars));
+  const bucketMs = interval * bucketSlots;
+  const count = Math.ceil(windowMs / bucketMs), cutoff = now - windowMs;
+  const buckets = Array.from({length: count}, (_, index) => ({
+    start: cutoff + index * bucketMs, end: Math.min(now, cutoff + (index + 1) * bucketMs),
+    slots: new Map(), failed: false, latencies: []
+  }));
   for (const sample of history) {
     const time = +parseTs(sample.ts);
     if (sample.boundary_anchor || time <= cutoff || time > now) continue;
-    const bucket = buckets[Math.min(count - 1, Math.floor((time - cutoff) / bucketSize))];
-    const expected = Math.max(1, Math.ceil((bucket.end - bucket.start) / interval));
-    const slot = Math.min(expected - 1, Math.floor((time - bucket.start) / interval));
+    const bucket = buckets[Math.min(count - 1, Math.floor((time - cutoff) / bucketMs))];
+    const slot = Math.min(bucketSlots - 1, Math.floor((time - bucket.start) / interval));
     for (const name of names) {
       const result = sample.results[name];
       if (!result || typeof result.ok !== "boolean") continue;
       if (result.ok === false) bucket.failed = true;
+      if (Number.isFinite(result.latency_ms)) bucket.latencies.push(result.latency_ms);
       if (!bucket.slots.has(name)) bucket.slots.set(name, new Set());
       bucket.slots.get(name).add(slot);
     }
   }
-  return buckets.map(bucket => ({start: bucket.start, end: bucket.end,
-    tone: bucket.failed ? "warn" : names.every(name => {
-      const expected = Math.max(1, Math.ceil((bucket.end - bucket.start) / interval));
-      return (bucket.slots.get(name)?.size || 0) / expected >= settings.minimum_coverage;
-    }) ? "ok" : "unknown"}));
+  return buckets.map(bucket => {
+    const possible = Math.max(1, Math.ceil((bucket.end - bucket.start) / interval));
+    const complete = names.every(name => (bucket.slots.get(name)?.size || 0) / possible >= settings.minimum_coverage);
+    return {...bucket, tone: bucket.failed ? "warn" : complete ? "ok" : "unknown",
+      latency: bucket.latencies.length ? bucket.latencies.reduce((a, b) => a + b, 0) / bucket.latencies.length : null};
+  });
+}
+function hourlyHealth(history, names, settings, now) {
+  return historyBuckets(history, names, DAY, settings, now, 24);
 }
 function setHtml(id, html) {
   const node = document.getElementById(id);
-  if (node.innerHTML === html) return;
-  // Refreshing data must not collapse a diagnostic the reader has opened or lose keyboard focus.
+  if (!node || node.innerHTML === html) return;
   const openIds = [...(node.querySelectorAll?.("details[open]") || [])].map(item => item.id);
   const focusedId = node.contains?.(document.activeElement) ? document.activeElement.id : null;
   node.innerHTML = html;
@@ -146,40 +177,112 @@ function setHtml(id, html) {
     const item = document.getElementById(openId);
     if (item) item.open = true;
   }
-  if (focusedId) document.getElementById(focusedId)?.focus({preventScroll: true});
+  if (focusedId) document.getElementById(focusedId)?.focus?.({preventScroll: true});
 }
-function setSummary(message, tone) {
-  document.getElementById("summary").textContent = message;
-  const icon = document.getElementById("summary-icon");
-  icon.className = `summary-icon ${tone}`;
-  icon.textContent = {ok: "✓", warn: "!", bad: "!", unknown: "–"}[tone];
-  const art = document.getElementById("status-visual-art");
-  if (art) {
-    art.className = `status-visual-art ${tone}`;
-    document.getElementById("visual-mark").textContent = {ok: "✓", warn: "!", bad: "!", unknown: "?"}[tone];
-    document.getElementById("visual-state").textContent = message;
+function setText(id, value) {
+  const node = document.getElementById(id);
+  if (node) node.textContent = value;
+}
+function availabilityHtml(value, label) {
+  const result = value.percent === null ? "Insufficient data" : `${value.percent.toFixed(2)}%`;
+  return `<div class="availability"><span>${esc(label)}</span><strong>${result}</strong><small>${(value.coverage * 100).toFixed(1)}% coverage · ${value.observed}/${value.expected} slots</small></div>`;
+}
+function trendHtml(history, name, windowMs, settings, now) {
+  const buckets = historyBuckets(history, [name], windowMs, settings, now, 36);
+  const observed = buckets.filter(bucket => bucket.latency !== null);
+  if (!observed.length) return '<div class="trend-empty">No response-time observations in this range.</div>';
+  const max = Math.max(...observed.map(bucket => bucket.latency), 1);
+  const points = buckets.map((bucket, index) => bucket.latency === null ? null :
+    `${(index / Math.max(1, buckets.length - 1) * 100).toFixed(2)},${(30 - bucket.latency / max * 25).toFixed(2)}`)
+    .filter(Boolean).join(" ");
+  const latest = observed.at(-1).latency;
+  return `<div class="trend-head"><span>Response time trend</span><strong>${Math.round(latest)} ms latest</strong></div>
+    <svg class="trend" viewBox="0 0 100 34" preserveAspectRatio="none" role="img" aria-label="Recorded response times; latest ${Math.round(latest)} milliseconds">
+      <path d="M0 31 H100" class="trend-base"></path><polyline points="${points}" class="trend-line"></polyline>
+    </svg>`;
+}
+function statusEvidence(current) {
+  if (!current) return "No observation was recorded.";
+  if (current.status_code != null && current.detail === "Response failed semantic assertion") {
+    return `HTTP ${current.status_code}; expected response content was missing or different.`;
   }
-}
-function showUnavailable(message = "We couldn’t load the latest checks. Trying again shortly.") {
-  setSummary("Service status unavailable", "unknown");
-  document.getElementById("since").textContent = message;
-  document.getElementById("service-count").textContent = "Awaiting update";
-  setHtml("targets", '<p class="muted">Service checks are temporarily unavailable.</p>');
-  document.getElementById("service-caption").textContent = "Please check back shortly.";
-  for (const id of ["timeline", "diagnostics", "cadence", "history-note"]) setHtml(id, "");
-  for (const id of ["history-summary", "incidents", "incident-history", "gaps"]) setHtml(id, '<p class="muted">Monitoring data is unavailable.</p>');
-  document.getElementById("updated").textContent = "Waiting for a verified update";
+  return current.detail || (current.status_code != null ? `HTTP ${current.status_code}` : "Request did not complete.");
 }
 function incidentHtml(incident, detailed = false) {
   const info = serviceInfo(incident.name);
-  const status = incident.removed ? "Retired service" : incident.ongoing ? "Unresolved at last check" : "Resolved";
-  return `<div class="incident"><div class="incident-title"><strong>${esc(info.label)}</strong>` +
-    `<span class="${incident.ongoing ? 'incident-state' : 'muted'}">${status}</span></div>` +
-    `<p>${esc(fmtLocal(new Date(incident.start).toISOString()))}${!incident.ongoing ? ` · ${age(incident.end - incident.start)}` : ''}</p>` +
-    `${detailed && incident.boundary ? '<p>The incident may have started before the retained history.</p>' : ''}</div>`;
+  const status = incident.removed ? "Retired service" : incident.ongoing ? "Unresolved at latest observation" : "Recovered";
+  return `<article class="incident-row ${incident.ongoing ? "bad" : "resolved"}">
+    <div class="incident-marker" aria-hidden="true">${incident.ongoing ? "!" : "✓"}</div>
+    <div><div class="incident-title"><strong>${esc(info.label)}</strong><span>${status}</span></div>
+    <p>${esc(incident.latestDetail || "Confirmed failure")}</p>
+    <dl><div><dt>First detected</dt><dd>${esc(fmtLocal(new Date(incident.firstObserved || incident.start).toISOString()))}</dd></div>
+    <div><dt>Latest observation</dt><dd>${esc(fmtLocal(new Date(incident.end).toISOString()))}</dd></div>
+    ${!incident.ongoing ? `<div><dt>Observed duration</dt><dd>${duration(incident.end - incident.start)}</dd></div>` : ""}</dl>
+    ${detailed && incident.boundary ? "<small>Start may predate retained history.</small>" : ""}</div></article>`;
+}
+function serviceCard(item, history, state, settings, now, index) {
+  const current = item.current, st = state[item.name] || {}, rangeMs = UI.rangeDays * DAY;
+  const avail = availability(history, item.name, rangeMs, settings, now);
+  const buckets = historyBuckets(history, [item.name], rangeMs, settings, now, 36);
+  const barLabels = {ok: "passed", warn: "failed", unknown: "missing"};
+  const cert = st.cert_days_left == null ? '<span class="datum muted">Not collected</span>' :
+    `<span class="datum ${st.cert_days_left <= 21 ? "warn-text" : ""}">${esc(st.cert_days_left)} days · ${esc(st.cert_not_after)}</span>`;
+  return `<article class="service-card ${item.tone}" data-search="${esc(`${item.name} ${item.label} ${item.hostname}`.toLocaleLowerCase())}" data-group="${item.group}">
+    <div class="service-main">
+      <div class="service-identity"><span class="status-icon" aria-hidden="true">${{ok: "✓", bad: "×", warn: "!", unknown: "?"}[item.tone]}</span>
+        <div><h3>${esc(item.label)}</h3><p>${esc(item.hostname || item.description)}</p></div></div>
+      <span class="status-pill ${item.tone}">${esc(item.statusText)}</span>
+    </div>
+    <div class="service-data">
+      <div><span>HTTP</span><strong>${current?.status_code ?? "—"}</strong></div>
+      <div><span>Response</span><strong>${Number.isFinite(current?.latency_ms) ? `${current.latency_ms} ms` : "—"}</strong></div>
+      <div><span>Last check</span><strong>${esc(age(now - +parseTs(st.last_check_utc || st.last_check || "")))}</strong></div>
+      <div><span>TLS certificate</span>${cert}</div>
+      <div><span>Observed availability</span><strong>${avail.percent === null ? "Insufficient data" : `${avail.percent.toFixed(2)}%`}</strong><small>${(avail.coverage * 100).toFixed(0)}% coverage</small></div>
+    </div>
+    <div class="mini-history" aria-label="${UI.rangeDays}-day observation history">${buckets.map(bucket => {
+      const label = `${fmtLocal(new Date(bucket.start).toISOString())}: ${barLabels[bucket.tone]}`;
+      return `<i class="${bucket.tone}" title="${esc(label)}" aria-label="${esc(label)}"></i>`;
+    }).join("")}</div>
+    <details class="service-detail" id="service-detail-${index}">
+      <summary>Investigate <span aria-hidden="true">↓</span></summary>
+      <div class="detail-grid">
+        <div class="evidence"><span class="detail-label">Latest evidence</span><strong>${esc(statusEvidence(current))}</strong>
+          <p>Observed ${esc(fmtLocal(st.last_check_utc || st.last_check))}</p>
+          ${current?.dns_warning ? `<p class="warning-copy">${esc(current.dns_warning)}</p>` : ""}
+          ${st.cert_failure_streak ? '<p class="warning-copy">TLS inspection is unavailable; certificate data may be old.</p>' : ""}
+        </div>
+        <div>${trendHtml(history, item.name, rangeMs, settings, now)}</div>
+      </div>
+      <div class="availability-grid">${[[DAY, "24 hours"], [7 * DAY, "7 days"], [30 * DAY, "30 days"]]
+        .map(([span, label]) => availabilityHtml(availability(history, item.name, span, settings, now), label)).join("")}</div>
+      <p class="detail-note">${esc(item.name)} · ${esc(item.description)}. This check proves only the configured public reachability and semantic assertion.</p>
+    </details>
+  </article>`;
+}
+function applyServiceFilters() {
+  if (!UI.model || typeof document === "undefined") return;
+  const matches = filterServices(UI.model.items, UI.query, UI.filter);
+  const names = new Set(matches.map(item => item.name));
+  const cards = document.querySelectorAll?.(".service-card") || [];
+  for (const card of cards) card.hidden = !names.has(card.dataset.name || card.getAttribute?.("data-name"));
+  setText("results-count", `${matches.length} of ${UI.model.items.length} services`);
+  const empty = document.getElementById("empty-results");
+  if (empty) empty.hidden = matches.length !== 0;
+}
+function showUnavailable(message = "We couldn’t load the latest checks. Trying again shortly.") {
+  setText("summary", "Service status unavailable");
+  setText("since", message);
+  setText("updated", "Waiting for a verified update");
+  ["count-healthy", "count-failing", "count-pending", "count-unknown", "freshness-age"].forEach(id => setText(id, "—"));
+  setHtml("targets", '<p class="unavailable-state">Service observations are unavailable.</p>');
+  setHtml("attention-list", '<p class="unavailable-state">Monitoring data is unavailable.</p>');
+  setHtml("timeline", "");
+  setHtml("history-summary", '<strong>Data unavailable</strong>');
+  setHtml("incident-history", '<p>Monitoring data is unavailable.</p>');
+  setHtml("gaps", '<p>Monitoring data is unavailable.</p>');
 }
 function render(history, state, now = Date.now()) {
-  const el = id => document.getElementById(id);
   const meta = state?._meta, config = meta?.config, settings = config?.settings;
   if (!Array.isArray(history) || !history.length || !settings || !Array.isArray(config.targets) || !config.targets.length ||
       !config.targets.every(t => t && typeof t.name === "string") ||
@@ -189,7 +292,7 @@ function render(history, state, now = Date.now()) {
     showUnavailable();
     return;
   }
-  const latest = history[history.length - 1];
+  const latest = history.at(-1);
   let fresh = freshness(meta.last_run_utc, settings, now);
   if (meta.latest_observation_utc !== latest.ts || +parseTs(latest.ts) > now ||
       +parseTs(latest.ts) > +parseTs(meta.last_run_utc)) fresh = "unknown";
@@ -197,68 +300,133 @@ function render(history, state, now = Date.now()) {
     showUnavailable("Waiting for a complete update. Trying again shortly.");
     return;
   }
-  const names = config.targets.map(t => t.name).sort((a, b) => serviceInfo(a).order - serviceInfo(b).order);
-  const known = names.every(n => confirmedUp(latest.results[n]) !== null);
-  const down = names.filter(n => confirmedUp(latest.results[n]) === false).length;
-  const pending = names.some(n => latest.results[n]?.ok === false && confirmedUp(latest.results[n]) === true);
-  const overall = fresh === "stale" ? ["Waiting for a fresh update", "warn"] :
-    fresh === "delayed" ? ["Status update delayed", "warn"] :
-    down ? [down === 1 ? "One service has a problem" : `${down} services have problems`, "bad"] :
-    !known ? ["Some service statuses are unavailable", "unknown"] :
-    pending ? ["Checking a possible issue", "warn"] : ["All systems operational", "ok"];
-  setSummary(...overall);
-  el("since").textContent = `Last checked ${humanAge(now - +parseTs(latest.ts))}. ` +
-    (fresh !== "fresh" ? "Current service status is unconfirmed." : pending ? "We’re checking again to confirm." : "Checks run about every four hours under GitHub Actions scheduling policies; runs may be delayed or dropped.");
-  el("updated").textContent = `Last update ${fmtLocal(meta.last_run_utc)}`;
-  el("service-count").textContent = `${names.length} services`;
-  el("service-caption").textContent = fresh === "fresh" ? "Service status at the latest check. More detail is available below." :
-    "These are past results. New checks are taking longer than usual.";
-  el("cadence").textContent = `Checks are scheduled about every ${settings.expected_interval_seconds / 3600} hours under GitHub Actions scheduling policies; runs can be delayed or dropped. ` +
-    `The page refreshes every ${settings.refresh_seconds} seconds. One failed check is rechecked; DOWN is confirmed after ${settings.failures_before_down} consecutive failures. ` +
-    `Data is marked delayed after ${settings.delayed_after_seconds / 3600} hours and stale after ${settings.stale_after_seconds / 3600} hours.`;
-  const allIncidents = [], allGaps = [], diagnostics = [];
-  setHtml("targets", names.map((name, index) => {
-    const current = latest.results[name], st = state[name] || {}, info = serviceInfo(name);
-    const status = tileStatus(current, fresh);
-    const values = [[DAY, "24 hours"], [7 * DAY, "7 days"], [30 * DAY, "30 days"]]
-      .map(([duration, label]) => availabilityHtml(availability(history, name, duration, settings, now), label)).join("");
-    allIncidents.push(...incidentsFor(history, name));
-    const gaps = gapsFor(history, name, settings, now);
-    if (gaps.length) allGaps.push(`<p class="gap">${esc(info.label)}: ${gaps.length} gap${gaps.length === 1 ? '' : 's'}; latest ` +
-      `${esc(fmtLocal(new Date(gaps.at(-1).start).toISOString()))} — ${esc(fmtLocal(new Date(gaps.at(-1).end).toISOString()))}</p>`);
-    let cert = "";
-    if (st.cert_days_left != null) cert = `<p>Certificate: ${esc(st.cert_days_left)} days remaining at last inspection. ` +
-      `Expires ${esc(st.cert_not_after)} · ${esc(st.cert_issuer)} · inspected ${esc(fmtLocal(st.cert_inspected_utc))}</p>`;
-    if (st.cert_failure_streak) cert += `<p>Certificate inspection is unavailable. Retained certificate information may be old.</p>`;
-    diagnostics.push(`<details class="target-detail" id="detail-${index}"><summary id="detail-toggle-${index}">${esc(info.label)}</summary>` +
-      `<div class="diagnostic-content"><p>${esc(name)} · ${esc(status.text)}</p>` +
-      `<p>${esc(current?.detail || 'No observation')} · checked ${esc(fmtLocal(st.last_check_utc || st.last_check))}</p>` +
-      `${current?.dns_warning ? `<p>${esc(current.dns_warning)}</p>` : ''}` +
-      `<div class="uptimes">${values}</div>${cert}</div></details>`);
-    return `<article class="service-tile ${status.tone} ${info.size || ''}" aria-labelledby="service-${index}">` +
-      `<div><h3 class="tile-heading" id="service-${index}">${esc(info.label)}</h3><p class="tile-description">${esc(info.description)}</p></div>` +
-      `<p class="tile-status"><span class="status-dot" aria-hidden="true"></span>${status.text}</p></article>`;
+  const targets = [...config.targets].sort((a, b) => serviceInfo(a.name, a).order - serviceInfo(b.name, b).order);
+  const items = targets.map(target => {
+    const info = serviceInfo(target.name, target), status = tileStatus(latest.results[target.name], fresh);
+    return {name: target.name, ...info, current: latest.results[target.name], tone: status.tone,
+      group: status.group, statusText: status.text};
+  });
+  const counts = {
+    healthy: items.filter(i => i.group === "healthy").length,
+    failing: items.filter(i => i.tone === "bad").length,
+    pending: items.filter(i => i.tone === "warn").length,
+    unknown: items.filter(i => i.group === "unknown").length
+  };
+  const overall = fresh === "stale" ? ["Waiting for a fresh update", "stale"] :
+    fresh === "delayed" ? ["Status update delayed", "delayed"] :
+    counts.failing ? [`${counts.failing} service${counts.failing === 1 ? "" : "s"} need immediate attention`, "bad"] :
+    counts.pending ? ["A possible issue is being confirmed", "warn"] :
+    counts.unknown ? ["Some service statuses are unavailable", "unknown"] : ["All systems operational", "ok"];
+  setText("summary", overall[0]);
+  setText("since", fresh === "fresh" ? `Latest completed cycle was ${age(now - +parseTs(latest.ts))}. Status reflects recorded public checks.` :
+    "Displayed service results are historical until a fresh cycle completes.");
+  setText("updated", `Latest cycle · ${fmtLocal(meta.last_run_utc)}`);
+  setText("count-healthy", counts.healthy);
+  setText("count-failing", counts.failing);
+  setText("count-pending", counts.pending);
+  setText("count-unknown", counts.unknown);
+  setText("freshness-age", age(now - +parseTs(meta.last_run_utc)));
+  setText("freshness-detail", fresh === "fresh" ? "Monitor data is fresh" : fresh === "delayed" ? "Cycle is delayed" : "Data is stale");
+  const badge = document.getElementById("freshness-badge");
+  if (badge) {
+    badge.className = `freshness-badge ${fresh}`;
+    badge.innerHTML = `<span aria-hidden="true">◷</span> ${fresh === "fresh" ? "Fresh data" : fresh === "delayed" ? "Delayed data" : "Stale data"}`;
+  }
+
+  const allIncidents = [];
+  for (const item of items) allIncidents.push(...incidentsFor(history, item.name));
+  const warnings = [];
+  if (fresh !== "fresh") warnings.push({priority: -1,
+    html: `<article class="warning-row"><div class="incident-marker">!</div><div><div class="incident-title"><strong>Monitor freshness</strong><span>${fresh} data</span></div><p>No current service state can be confirmed. Last completed cycle: ${esc(fmtLocal(meta.last_run_utc))}.</p></div></article>`});
+  for (const item of items) {
+    const st = state[item.name] || {}, current = item.current;
+    const incident = allIncidents.find(value => value.name === item.name && value.ongoing);
+    if (incident) warnings.push({priority: 0, html: incidentHtml(incident)});
+    else if (current?.ok === false && confirmedUp(current) === true) warnings.push({priority: 1,
+      html: `<article class="warning-row"><div class="incident-marker">!</div><div><div class="incident-title"><strong>${esc(item.label)}</strong><span>Pending confirmation</span></div><p>${esc(statusEvidence(current))}</p><dl><div><dt>First detection</dt><dd>${esc(fmtLocal(latest.ts))}</dd></div><div><dt>Latest observation</dt><dd>${esc(fmtLocal(latest.ts))}</dd></div></dl></div></article>`});
+    if (st.cert_failure_streak) warnings.push({priority: 2,
+      html: `<article class="warning-row"><div class="incident-marker">!</div><div><div class="incident-title"><strong>${esc(item.label)} TLS</strong><span>Inspection unavailable</span></div><p>Last certificate information may be old.</p></div></article>`});
+    else if (st.cert_days_left != null && st.cert_days_left <= Math.max(...settings.cert_warn_days)) warnings.push({priority: 2,
+      html: `<article class="warning-row"><div class="incident-marker">!</div><div><div class="incident-title"><strong>${esc(item.label)} TLS</strong><span>${esc(st.cert_days_left)} days left</span></div><p>Certificate expires ${esc(st.cert_not_after)} · ${esc(st.cert_issuer)}</p></div></article>`});
+    if (current?.dns_warning) warnings.push({priority: 3,
+      html: `<article class="warning-row"><div class="incident-marker">!</div><div><div class="incident-title"><strong>${esc(item.label)} DNS</strong><span>Advisory</span></div><p>${esc(current.dns_warning)}</p></div></article>`});
+  }
+  warnings.sort((a, b) => a.priority - b.priority);
+  setText("attention-count", warnings.length ? `${warnings.length} active` : "Clear");
+  setHtml("attention-list", warnings.length ? warnings.map(item => item.html).join("") :
+    '<div class="quiet-state"><span aria-hidden="true">✓</span><div><strong>No active incidents or warnings</strong><p>The latest recorded cycle has no actionable findings.</p></div></div>');
+
+  UI.model = {history, state, settings, now, items};
+  setHtml("targets", items.map((item, index) => serviceCard(item, history, state, settings, now, index)
+    .replace("<article class=", `<article data-name="${esc(item.name)}" class=`)).join(""));
+  applyServiceFilters();
+
+  const rangeMs = UI.rangeDays * DAY;
+  const fleet = historyBuckets(history, items.map(item => item.name), rangeMs, settings, now, 72);
+  const observed = fleet.filter(bucket => bucket.tone !== "unknown").length;
+  setHtml("history-summary", `<strong>${observed}/${fleet.length}</strong><span>display buckets contain sufficient observations; missing buckets are not counted as healthy.</span>`);
+  const labels = {ok: "checks passed", warn: "at least one probe failed", unknown: "observations missing"};
+  setHtml("timeline", fleet.map(bucket => {
+    const label = `${fmtLocal(new Date(bucket.start).toISOString())}: ${labels[bucket.tone]}`;
+    return `<i class="history-bar ${bucket.tone}" role="img" aria-label="${esc(label)}" title="${esc(label)}"></i>`;
   }).join(""));
-  setHtml("diagnostics", diagnostics.join(""));
-  // Keep incidents for retired endpoints until the underlying history expires.
-  const oldNames = new Set(history.flatMap(s => Object.keys(s.results)));
-  for (const name of oldNames) if (!names.includes(name)) allIncidents.push(...incidentsFor(history, name)
-    .map(i => ({...i, removed: true})));
-  setHtml("gaps", allGaps.join("") || "No gaps longer than two scheduled intervals were recorded.");
+  setText("range-start", UI.rangeDays === 1 ? "24 hours ago" : `${UI.rangeDays} days ago`);
+  setText("history-note", `Bars aggregate expected ${settings.expected_interval_seconds / 3600}-hour slots. Amber is a recorded failed probe; gray is missing evidence.`);
+  setText("cadence", `Checks are expected about every ${settings.expected_interval_seconds / 3600} hours. Data becomes delayed after ${settings.delayed_after_seconds / 3600} hours and stale after ${settings.stale_after_seconds / 3600} hours. A confirmed outage requires ${settings.failures_before_down} consecutive failures.`);
+
+  const gaps = items.flatMap(item => gapsFor(history, item.name, settings, now).map(gap => ({...gap, label: item.label})));
+  setHtml("gaps", gaps.length ? gaps.map(gap => `<p><strong>${esc(gap.label)}</strong> · ${esc(fmtLocal(new Date(gap.start).toISOString()))} to ${esc(fmtLocal(new Date(gap.end).toISOString()))}</p>`).join("") :
+    "<p>No gap longer than two expected intervals in the last 24 hours.</p>");
+  const oldNames = new Set(history.flatMap(sample => Object.keys(sample.results)));
+  for (const name of oldNames) if (!items.some(item => item.name === name)) {
+    allIncidents.push(...incidentsFor(history, name).map(incident => ({...incident, removed: true})));
+  }
   allIncidents.sort((a, b) => b.start - a.start);
-  const recent = allIncidents.filter(i => i.end > now - DAY && i.start <= now);
-  setHtml("history-summary", `<strong>${recent.length}</strong>confirmed incident${recent.length === 1 ? '' : 's'}`);
-  const hours = hourlyHealth(history, names, settings, now);
-  const hourLabels = {ok: "Checks passed", warn: "A check failed", unknown: "Some checks are missing"};
-  setHtml("timeline", hours.map(h => {
-    const label = `${fmtLocal(new Date(h.start).toISOString())} — ${fmtLocal(new Date(h.end).toISOString())}: ${hourLabels[h.tone]}`;
-    return `<span class="hour ${h.tone}" role="img" aria-label="${esc(label)}" title="${esc(label)}"></span>`;
-  }).join(""));
-  el("history-note").textContent = `Each bar is an expected monitoring window (about ${settings.expected_interval_seconds / 3600} hours). Missing checks don’t mean downtime; a failed check may be temporary.`;
-  const priorityIncidents = [...allIncidents].sort((a, b) => Number(b.ongoing && !b.removed) - Number(a.ongoing && !a.removed) || b.start - a.start);
-  setHtml("incidents", priorityIncidents.length ? priorityIncidents.slice(0, 3).map(i => incidentHtml(i)).join("") :
-    '<div class="quiet-state"><span class="quiet-icon" aria-hidden="true">○</span><div><strong>No confirmed incidents</strong><p>In the available monitoring history.</p></div></div>');
-  setHtml("incident-history", allIncidents.length ? allIncidents.map(i => incidentHtml(i, true)).join("") : "No confirmed incidents in the available history.");
+  setHtml("incident-history", allIncidents.length ? allIncidents.map(incident => incidentHtml(incident, true)).join("") :
+    "<p>No confirmed incidents in retained history.</p>");
+}
+function rerenderRange(days) {
+  UI.rangeDays = days;
+  if (UI.model) render(UI.model.history, UI.model.state, UI.model.now);
+}
+function resetFilters() {
+  UI.query = "";
+  UI.filter = "all";
+  const search = document.getElementById("service-search");
+  if (search) search.value = "";
+  for (const button of document.querySelectorAll?.(".filter") || []) {
+    const active = button.dataset.filter === "all";
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  }
+  applyServiceFilters();
+}
+function initializeUi() {
+  const search = document.getElementById("service-search");
+  search?.addEventListener("input", event => { UI.query = event.target.value; applyServiceFilters(); });
+  document.getElementById("status-filters")?.addEventListener("click", event => {
+    const button = event.target.closest?.("[data-filter]");
+    if (!button) return;
+    UI.filter = button.dataset.filter;
+    for (const item of document.querySelectorAll(".filter")) {
+      const active = item === button;
+      item.classList.toggle("active", active);
+      item.setAttribute("aria-pressed", String(active));
+    }
+    applyServiceFilters();
+  });
+  document.getElementById("range-controls")?.addEventListener("click", event => {
+    const button = event.target.closest?.("[data-range]");
+    if (!button) return;
+    for (const item of document.querySelectorAll("#range-controls button")) {
+      const active = item === button;
+      item.classList.toggle("active", active);
+      item.setAttribute("aria-pressed", String(active));
+    }
+    rerenderRange(Number(button.dataset.range));
+  });
+  document.getElementById("reset-filters")?.addEventListener("click", resetFilters);
+  document.getElementById("empty-reset")?.addEventListener("click", resetFilters);
 }
 async function loadPage() {
   clearTimeout(globalThis.statusRefresh);
@@ -272,16 +440,18 @@ async function loadPage() {
     render(...data);
     const interval = data[1]?._meta?.config?.settings?.refresh_seconds;
     if (Number.isFinite(interval) && interval > 0) refreshSeconds = interval;
-    // Re-evaluate freshness locally even before the next network refresh.
     clearInterval(globalThis.statusClock);
     globalThis.statusClock = setInterval(() => render(...data), Math.min(refreshSeconds, 10) * 1000);
   } catch (_) {
     clearInterval(globalThis.statusClock);
     showUnavailable();
   } finally {
-    // Temporary network failures must recover without requiring a manual reload.
     globalThis.statusRefresh = setTimeout(loadPage, refreshSeconds * 1000);
   }
 }
-if (typeof module !== "undefined") module.exports = {esc, parseTs, freshness, availability, incidentsFor, gapsFor, render, hourlyHealth, tileStatus, showUnavailable, loadPage};
-else loadPage();
+if (typeof module !== "undefined") module.exports = {esc, parseTs, freshness, availability, incidentsFor,
+  gapsFor, render, hourlyHealth, historyBuckets, tileStatus, filterServices, showUnavailable, loadPage};
+else {
+  initializeUi();
+  loadPage();
+}

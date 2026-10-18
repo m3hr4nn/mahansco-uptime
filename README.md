@@ -60,11 +60,13 @@ checks within that slot must succeed for it to count as successful. Extra manual
 runs cannot fill other missing slots. Raw failed observations count as failures
 for observed availability even when alert debounce absorbs them.
 
-The public page presents a compact dark service-tile dashboard and a collapsible
-**History & monitoring details** menu below it. The menu contains the 24-hour
-check-history strip, recent and retained incidents, observed availability,
-observed/expected slots, coverage, certificate information and monitoring gaps.
-Tile sizes emphasize the website and web app; they do not encode traffic or uptime.
+The public page presents a compact single-page operations dashboard. The summary,
+freshness, active incidents and certificate/DNS warnings stay above the service
+list. Search matches public service names and hostnames; status filters and a reset
+work instantly in the browser. Each service row exposes its latest HTTP result,
+response time, check age, certificate state, observed availability and coverage.
+Expanding a row reveals recorded response-time history, probe evidence and 24-hour,
+7-day and 30-day coverage without navigating away.
 Status data omits exact checked URLs. The public source repository still contains
 the probe configuration.
 Gray tiles show historical or unknown status; delayed checks never appear as live
@@ -165,6 +167,66 @@ Do not change DNS, secrets, Pages settings or Tier 1 as part of this repository'
 maintenance. A live `workflow_dispatch` test sends real notifications and commits
 state; it requires explicit owner confirmation. Offline tests never fabricate a
 public outage.
+
+## Portable local and CI use
+
+The no-argument production command is unchanged: `python3 monitor.py` reads
+`targets.json`, writes `docs/`, uses the existing Telegram queue, and is the command
+used by GitHub Actions. Any run with `--url`, `--config`, or `--data-dir` is treated
+as an independent run: Telegram is disabled by default and observations are written
+only under the selected data directory. Custom runs do not read or flush the
+production notification queue. `--notifications` is an explicit opt-in for an
+independent installation with its own credentials.
+
+Preview the checked-in dashboard and current public dataset:
+
+```sh
+docker compose up --build dashboard
+# open http://localhost:8080
+```
+
+Start a separate URL-only monitor and preview its persistent dataset:
+
+```sh
+cp .env.example .env
+mkdir -p runtime/data
+docker compose run --rm monitor --url "https://example.com/" --data-dir /data
+docker compose --profile project up --build project-dashboard
+# open http://localhost:8081
+```
+
+The `runtime/data` bind mount survives container replacement. Every invocation is
+one monitoring cycle; use cron, a Jenkins timer, or a GitLab pipeline schedule to
+set cadence. URL-only mode expects HTTP 200, validates public HTTPS and TLS, and is
+explicitly labeled as generic reachability. It does not claim application health.
+For content or JSON assertions and multiple services, copy
+`examples/targets.example.json` outside the production configuration and run:
+
+```sh
+docker compose run --rm monitor --config /app/examples/targets.example.json --data-dir /data
+```
+
+`examples/Jenkinsfile` schedules one cycle about every four hours with
+`disableConcurrentBuilds()`. `examples/gitlab-ci.yml` runs only for scheduled or
+manual pipelines and uses a `resource_group` to serialize writers. Both examples
+restore a dedicated state repository before the cycle, archive the resulting JSON,
+and call `scripts/persist-external-state.sh`. Configure the runner-only
+`STATE_REPO_URL` credential to an initialized, independent repository (an empty
+first-run dataset is allowed; subsequent runs contain the three JSON files) and set
+the desired schedule in Jenkins or GitLab. The Jenkins timer is embedded in the
+example. For GitLab, create a pipeline schedule in **Build > Pipeline schedules**;
+`17 */4 * * *` matches the example configuration's expected four-hour interval.
+The helper
+commits only those files, retries a normal fetch/rebase/push three times, aborts on
+conflict, and never force-pushes.
+
+Do not point these examples at this repository's `docs/` dataset or schedule a
+second writer against the production branch. An ephemeral CI workspace does not
+retain history by itself; the separate state repository is the durable source and
+the archived JSON is only a recovery copy. Runtime Git credentials should be
+provided by the CI credential store. Local containers remain outside-in development
+or independent monitors and should not be moved onto the production application
+host.
 
 ## Tier 0 / Tier 1 contract
 
