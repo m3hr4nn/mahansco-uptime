@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#07110f">
+  <meta name="theme-color" content="#071426">
   <meta name="description" content="Live, outside-in monitoring for Mahansco public services.">
   <title>Mahansco · Operations monitor</title>
   <link rel="icon" href="data:,">
@@ -14,40 +14,35 @@
   <header class="site-header">
     <a class="brand" href="./" aria-label="Mahansco operations monitor home">
       <span class="brand-mark" aria-hidden="true">M</span>
-      <span><strong>MAHANSCO</strong><small>PUBLIC OPERATIONS MONITOR</small></span>
+      <span><strong>MAHANSCO</strong><small>STATUS</small></span>
     </a>
     <div class="header-meta"><span class="live-pulse" aria-hidden="true"></span><span id="updated">Loading latest observation…</span></div>
   </header>
 
   <main id="main">
-    <section class="hero" aria-labelledby="summary">
-      <div>
-        <p class="eyebrow">OUTSIDE-IN · HTTPS · TEHRAN TIME (UTC+03:30)</p>
-        <h1 id="summary" role="status" aria-live="polite">Reading monitor state…</h1>
-        <p id="since" class="lede">Loading recorded observations.</p>
+    <section class="command-grid" aria-label="Current monitor overview">
+      <div class="panel overview-panel">
+        <section class="hero" aria-labelledby="summary">
+          <div><h1 id="summary" role="status" aria-live="polite">Reading monitor state…</h1><p id="since" class="lede">Loading observations.</p></div>
+          <div id="freshness-badge" class="freshness-badge unknown"><span aria-hidden="true">◷</span> Unknown</div>
+        </section>
+        <section id="summary-grid" class="summary-grid" aria-label="Current service summary">
+          <div class="metric"><span class="metric-label"><i class="signal ok"></i>Healthy</span><strong id="count-healthy">—</strong></div>
+          <div class="metric"><span class="metric-label"><i class="signal bad"></i>Failing</span><strong id="count-failing">—</strong></div>
+          <div class="metric"><span class="metric-label"><i class="signal warn"></i>Pending</span><strong id="count-pending">—</strong></div>
+          <div class="metric"><span class="metric-label"><i class="signal unknown"></i>Unknown</span><strong id="count-unknown">—</strong></div>
+          <div class="metric freshness-metric"><span class="metric-label">Last check</span><strong id="freshness-age">—</strong><small id="freshness-detail">Waiting</small></div>
+        </section>
       </div>
-      <div id="freshness-badge" class="freshness-badge unknown"><span aria-hidden="true">◷</span> Unknown freshness</div>
-    </section>
-
-    <section id="summary-grid" class="summary-grid" aria-label="Current service summary">
-      <div class="metric"><span class="metric-label"><i class="signal ok"></i>Healthy</span><strong id="count-healthy">—</strong></div>
-      <div class="metric"><span class="metric-label"><i class="signal bad"></i>Failing</span><strong id="count-failing">—</strong></div>
-      <div class="metric"><span class="metric-label"><i class="signal warn"></i>Pending</span><strong id="count-pending">—</strong></div>
-      <div class="metric"><span class="metric-label"><i class="signal unknown"></i>Unknown</span><strong id="count-unknown">—</strong></div>
-      <div class="metric freshness-metric"><span class="metric-label">Latest cycle</span><strong id="freshness-age">—</strong><small id="freshness-detail">Waiting for data</small></div>
-    </section>
-
-    <section class="panel attention-panel" aria-labelledby="attention-heading">
-      <div class="section-heading">
-        <div><p class="eyebrow">TRIAGE FIRST</p><h2 id="attention-heading">Incidents &amp; warnings</h2></div>
-        <span id="attention-count" class="count-pill">Checking</span>
-      </div>
-      <div id="attention-list" class="attention-list"><p class="loading">Loading active problems…</p></div>
+      <section class="panel attention-panel" aria-labelledby="attention-heading">
+        <div class="section-heading"><h2 id="attention-heading">Alarms &amp; warnings</h2><span id="attention-count" class="count-pill">Checking</span></div>
+        <div id="attention-list" class="attention-list"><p class="loading">Loading…</p></div>
+      </section>
     </section>
 
     <section class="services-section" aria-labelledby="services-heading">
       <div class="section-heading services-title">
-        <div><p class="eyebrow">LATEST OBSERVATIONS</p><h2 id="services-heading">Services</h2></div>
+        <h2 id="services-heading">Services</h2>
         <span id="results-count" class="muted">Loading…</span>
       </div>
       <div class="toolbar" role="search">
@@ -56,7 +51,7 @@
         </label>
         <div id="status-filters" class="filters" aria-label="Filter services by status">
           <button class="filter active" type="button" data-filter="all" aria-pressed="true">All</button>
-          <button class="filter" type="button" data-filter="attention" aria-pressed="false">Needs attention</button>
+          <button class="filter" type="button" data-filter="attention" aria-pressed="false">Issues</button>
           <button class="filter" type="button" data-filter="healthy" aria-pressed="false">Healthy</button>
           <button class="filter" type="button" data-filter="unknown" aria-pressed="false">Unknown</button>
         </div>
@@ -68,7 +63,7 @@
 
     <section class="history-section" aria-labelledby="history-heading">
       <div class="section-heading">
-        <div><p class="eyebrow">RECORDED EVIDENCE</p><h2 id="history-heading">Fleet history</h2></div>
+        <h2 id="history-heading">History</h2>
         <div id="range-controls" class="range-controls" aria-label="History time range">
           <button type="button" data-range="1" class="active" aria-pressed="true">24h</button>
           <button type="button" data-range="7" aria-pressed="false">7d</button>
@@ -84,22 +79,8 @@
       </div>
     </section>
 
-    <section class="panel methodology" aria-labelledby="methodology-heading">
-      <details>
-        <summary id="methodology-heading">How to read this monitor</summary>
-        <div class="methodology-body">
-          <p id="cadence"></p>
-          <p><strong>Observed availability</strong> uses recorded checks only. Missing slots lower coverage and are never counted as healthy. Percentages are withheld when coverage is insufficient.</p>
-          <p><strong>Confirmed outage</strong> follows the monitor’s configured consecutive-failure rule. A pending failure remains distinct. Incident duration is bounded by observations and may include monitoring gaps.</p>
-          <div><h3>Monitoring gaps</h3><div id="gaps">Loading…</div></div>
-          <div><h3>Retained incident history</h3><div id="incident-history">Loading…</div></div>
-        </div>
-      </details>
-    </section>
-
     <noscript><p class="noscript">JavaScript is required to read the monitor’s JSON observations.</p></noscript>
   </main>
-  <footer><span>Mahansco · public observations, not a continuous uptime claim</span><a href="https://github.com/m3hr4nn/mahansco-uptime">Source ↗</a></footer>
   <script src="status.js"></script>
 </body>
 </html>

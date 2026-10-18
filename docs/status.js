@@ -312,21 +312,22 @@ function render(history, state, now = Date.now()) {
     pending: items.filter(i => i.tone === "warn").length,
     unknown: items.filter(i => i.group === "unknown").length
   };
-  const overall = fresh === "stale" ? ["Waiting for a fresh update", "stale"] :
-    fresh === "delayed" ? ["Status update delayed", "delayed"] :
-    counts.failing ? [`${counts.failing} service${counts.failing === 1 ? "" : "s"} need immediate attention`, "bad"] :
-    counts.pending ? ["A possible issue is being confirmed", "warn"] :
-    counts.unknown ? ["Some service statuses are unavailable", "unknown"] : ["All systems operational", "ok"];
+  const overall = fresh === "stale" ? ["Monitoring data is stale", "stale"] :
+    fresh === "delayed" ? ["Monitoring is delayed", "delayed"] :
+    counts.failing === 1 ? ["1 service needs attention", "bad"] :
+    counts.failing ? [`${counts.failing} services need attention`, "bad"] :
+    counts.pending ? ["Possible issue detected", "warn"] :
+    counts.unknown ? ["Status incomplete", "unknown"] : ["All services healthy", "ok"];
   setText("summary", overall[0]);
-  setText("since", fresh === "fresh" ? `Latest completed cycle was ${age(now - +parseTs(latest.ts))}. Status reflects recorded public checks.` :
-    "Displayed service results are historical until a fresh cycle completes.");
+  setText("since", fresh === "fresh" ? `Checked ${age(now - +parseTs(latest.ts))} · Tehran (UTC+03:30)` :
+    "Waiting for a current observation.");
   setText("updated", `Latest cycle · ${fmtLocal(meta.last_run_utc)}`);
   setText("count-healthy", counts.healthy);
   setText("count-failing", counts.failing);
   setText("count-pending", counts.pending);
   setText("count-unknown", counts.unknown);
   setText("freshness-age", age(now - +parseTs(meta.last_run_utc)));
-  setText("freshness-detail", fresh === "fresh" ? "Monitor data is fresh" : fresh === "delayed" ? "Cycle is delayed" : "Data is stale");
+  setText("freshness-detail", fresh === "fresh" ? "Fresh" : fresh === "delayed" ? "Delayed" : "Stale");
   const badge = document.getElementById("freshness-badge");
   if (badge) {
     badge.className = `freshness-badge ${fresh}`;
@@ -364,14 +365,14 @@ function render(history, state, now = Date.now()) {
   const rangeMs = UI.rangeDays * DAY;
   const fleet = historyBuckets(history, items.map(item => item.name), rangeMs, settings, now, 72);
   const observed = fleet.filter(bucket => bucket.tone !== "unknown").length;
-  setHtml("history-summary", `<strong>${observed}/${fleet.length}</strong><span>display buckets contain sufficient observations; missing buckets are not counted as healthy.</span>`);
+  setHtml("history-summary", `<strong>${observed}/${fleet.length}</strong><span>observed time buckets</span>`);
   const labels = {ok: "checks passed", warn: "at least one probe failed", unknown: "observations missing"};
   setHtml("timeline", fleet.map(bucket => {
     const label = `${fmtLocal(new Date(bucket.start).toISOString())}: ${labels[bucket.tone]}`;
     return `<i class="history-bar ${bucket.tone}" role="img" aria-label="${esc(label)}" title="${esc(label)}"></i>`;
   }).join(""));
   setText("range-start", UI.rangeDays === 1 ? "24 hours ago" : `${UI.rangeDays} days ago`);
-  setText("history-note", `Bars aggregate expected ${settings.expected_interval_seconds / 3600}-hour slots. Amber is a recorded failed probe; gray is missing evidence.`);
+  setText("history-note", `${settings.expected_interval_seconds / 3600}h slots · red failed · gray missing`);
   setText("cadence", `Checks are expected about every ${settings.expected_interval_seconds / 3600} hours. Data becomes delayed after ${settings.delayed_after_seconds / 3600} hours and stale after ${settings.stale_after_seconds / 3600} hours. A confirmed outage requires ${settings.failures_before_down} consecutive failures.`);
 
   const gaps = items.flatMap(item => gapsFor(history, item.name, settings, now).map(gap => ({...gap, label: item.label})));

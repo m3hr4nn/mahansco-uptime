@@ -76,7 +76,7 @@ test("render never calls stale, missing, or mismatched cycles healthy", () => {
   const state = {_meta: {last_run_utc: history[0].ts, latest_observation_utc: history[0].ts,
     config: {settings, targets: [{name: "Example"}]}}, Example: {}};
   page.render(history, state, now);
-  assert.match(elements.summary.textContent, /Waiting for a fresh update/);
+  assert.match(elements.summary.textContent, /Monitoring data is stale/);
   assert.doesNotMatch(elements.summary.textContent, /operational/);
   assert.match(elements.targets.innerHTML, /Previously available/);
   assert.doesNotMatch(elements.targets.innerHTML, /service-card ok/);
@@ -88,10 +88,10 @@ test("render never calls stale, missing, or mismatched cycles healthy", () => {
   assert.match(elements.summary.textContent, /unavailable/);
   history[0].ts = iso(now);
   page.render(history, state, now);
-  assert.match(elements.summary.textContent, /All systems operational/);
+  assert.match(elements.summary.textContent, /All services healthy/);
   delete history[0].results.Example;
   page.render(history, state, now);
-  assert.match(elements.summary.textContent, /unavailable/);
+  assert.match(elements.summary.textContent, /incomplete/);
 });
 test("remote names, details, URLs and certificate metadata are escaped", () => {
   const elements = documentStub();
@@ -132,7 +132,7 @@ test("unknown cycles clear all prior data and do not leave a healthy history sum
   const history = [sample(now, true)];
   const state = {_meta: {last_run_utc: iso(now), latest_observation_utc: iso(now), config: {settings, targets: [{name: "Example"}]}}};
   page.render(history, state, now);
-  assert.match(elements.summary.textContent, /All systems operational/);
+  assert.match(elements.summary.textContent, /All services healthy/);
   page.showUnavailable();
   assert.match(elements.summary.textContent, /unavailable/);
   assert.doesNotMatch(elements.targets.innerHTML, /Operational/);
@@ -172,7 +172,7 @@ test("failed fetch schedules an automatic retry and a successful retry restores 
     const state = {_meta: {last_run_utc: iso(time), latest_observation_utc: iso(time), config: {settings, targets: [{name: "Example"}]}}};
     global.fetch = async path => ({ok: true, json: async () => path.startsWith("history") ? history : state});
     await retry();
-    assert.match(elements.summary.textContent, /All systems operational/);
+    assert.match(elements.summary.textContent, /All services healthy/);
   } finally {
     Object.assign(global, original);
     delete global.statusClock;
