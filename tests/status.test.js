@@ -152,6 +152,16 @@ test("search matches service names and hostnames and composes with status filter
   assert.equal(page.filterServices(items, "missing", "all").length, 0);
   assert.equal(page.filterServices(items, "", "all").length, 3);
 });
+test("weekly summary labels partial data and escapes observations", () => {
+  const report = page.weeklyHtml({latest: {schema_version: 1, window_start_utc: iso(now - 7 * 86400000),
+    window_end_utc: iso(now), health: "PARTIAL DATA", availability_percent: null, coverage_percent: 50,
+    median_ms: 120, p95_ms: 240, latency_samples: 12, incident_count: 0, longest_incident_seconds: 0,
+    missing_slots: 6, observed_slots: 6, expected_slots: 12, observations: ["Missing <checks>"]}});
+  assert.match(report.metrics, /Insufficient data/);
+  assert.match(report.metrics, /HTTP median \/ p95/);
+  assert.match(report.observations, /Missing &lt;checks&gt;/);
+  assert.equal(page.weeklyHtml({latest: null}), null);
+});
 test("failed fetch schedules an automatic retry and a successful retry restores service status", async () => {
   const elements = documentStub();
   const original = {fetch: global.fetch, setTimeout: global.setTimeout, clearTimeout: global.clearTimeout,

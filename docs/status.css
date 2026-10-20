@@ -119,6 +119,15 @@ h3 { margin-bottom: 2px; font-size: .95rem; }
 .incident-row dd, .warning-row dd { margin: 0; font: .56rem var(--mono); }
 .quiet-state { align-items: center; }
 .quiet-state > span { width: 24px; height: 24px; display: grid; place-items: center; color: var(--green); background: var(--green-soft); border-radius: 50%; }
+.weekly-section { margin-bottom: 28px; padding: 15px 17px; border-radius: var(--radius); }
+.weekly-section .section-heading > div { min-width: 0; }
+.weekly-section .section-heading span { font: .58rem var(--mono); }
+.weekly-metrics { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.weekly-metrics > div { display: grid; gap: 2px; padding: 10px 12px; border-right: 1px solid var(--line); background: rgba(3,12,29,.2); }
+.weekly-metrics > div:last-child { border-right: 0; }
+.weekly-metrics span, .weekly-metrics small { color: var(--muted); font: .55rem var(--mono); }
+.weekly-metrics strong { font: 700 .78rem var(--mono); }
+.weekly-observations { display: flex; flex-wrap: wrap; gap: 6px 22px; margin: 9px 0 0; padding-left: 18px; color: var(--muted); font-size: .64rem; }
 .services-section { margin-bottom: 28px; }
 .services-title { padding: 0 2px; }
 .toolbar { display: flex; gap: 8px; margin-bottom: 9px; padding: 7px; border-radius: 13px; }
@@ -177,7 +186,7 @@ h3 { margin-bottom: 2px; font-size: .95rem; }
 .availability { display: grid; padding: 8px 10px; background: rgba(7,20,38,.88); }
 .availability span, .availability small { color: var(--muted); font: .54rem var(--mono); }
 .availability strong { margin: 1px 0; font: .7rem var(--mono); }
-.detail-note { display: none; }
+.detail-note { margin: 0 15px 10px 51px; color: var(--muted); font-size: .58rem; }
 .empty-results, .unavailable-state, .noscript { padding: 28px 18px; color: var(--muted); text-align: center; border: 1px dashed var(--line); border-radius: 12px; }
 .empty-results p { margin-bottom: 10px; }
 .history-section { margin-bottom: 0; }
@@ -206,6 +215,9 @@ h3 { margin-bottom: 2px; font-size: .95rem; }
   .toolbar { flex-wrap: wrap; }
   .search-box { flex-basis: 100%; }
   .filters { flex: 1; overflow-x: auto; }
+  .weekly-metrics { grid-template-columns: repeat(2, 1fr); }
+  .weekly-metrics > div:nth-child(2) { border-right: 0; }
+  .weekly-metrics > div:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
   .service-data { grid-template-columns: repeat(3, 1fr); row-gap: 10px; }
 }
 @media (max-width: 620px) {
@@ -237,6 +249,10 @@ h3 { margin-bottom: 2px; font-size: .95rem; }
   .service-detail summary { padding-left: 47px; }
   .detail-grid { grid-template-columns: 1fr; padding-left: 47px; }
   .availability-grid { grid-template-columns: 1fr; margin-left: 47px; margin-right: 12px; }
+  .weekly-metrics { grid-template-columns: 1fr; }
+  .weekly-metrics > div { border-right: 0; border-bottom: 1px solid var(--line); }
+  .weekly-metrics > div:last-child { border-bottom: 0; }
+  .weekly-observations { display: block; }
   .history-summary { align-items: flex-start; flex-direction: column; }
 }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } * { transition: none !important; } }

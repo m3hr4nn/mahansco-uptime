@@ -9,6 +9,7 @@ installs: urllib, ssl, socket, json, datetime.
 import argparse
 import datetime
 from concurrent.futures import ThreadPoolExecutor
+import hashlib
 import html
 import ipaddress
 import json
@@ -316,6 +317,7 @@ def resolve_ips(host):
 class PublicRedirect(urllib.request.HTTPRedirectHandler):
     def __init__(self, target):
         self.target = target
+        self.count = 0
 
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         if (not public_url(newurl) or
@@ -326,6 +328,7 @@ class PublicRedirect(urllib.request.HTTPRedirectHandler):
             raise ValueError("Nonpublic redirect")
         if req.get_method() == "POST":
             raise ValueError("POST redirects cannot preserve semantic checks safely")
+        self.count += 1
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
@@ -347,7 +350,7 @@ def semantic_match(body, target):
 
 
 def check(t):
-    """Return (ok, detail, latency_ms, status_code, dns_ms, dns_warning, final_url).
+    """Return (ok, detail, latency_ms, status, dns_ms, dns_warning, redirects, bytes, final_url).
     latency_ms/status_code are None when the request never completed; dns_ms is
     the DNS-resolution time (measured even on failure so slow DNS is visible).
     An expected-IP mismatch is advisory: public reachability remains the primary
@@ -359,9 +362,9 @@ def check(t):
     ips = resolve_ips(host)
     dns_ms = int((time.monotonic() - dns_start) * 1000)
     if not ips:
-        return False, "DNS resolution failed", None, None, dns_ms, None, None
+        return False, "DNS resolution failed", None, None, dns_ms, None, None, None, None
     if any(not ipaddress.ip_address(ip).is_global for ip in ips):
-        return False, "DNS returned a nonpublic address", None, None, dns_ms, None, None
+        return False, "DNS returned a nonpublic address", None, None, dns_ms, None, None, None, None
     dns_warning = None
     if t.get("expected_ips") and not set(ips) <= {str(ipaddress.ip_address(ip)) for ip in t["expected_ips"]}:
         dns_warning = "DNS addresses differ from the configured address set"
@@ -369,29 +372,32 @@ def check(t):
     # Bounded public GET or the configured harmless metadata POST.
     start = time.monotonic()
     final_url = None
+    redirect_handler = PublicRedirect(t)
     try:
         data = json.dumps(t["json_body"]).encode() if "json_body" in t else None
         req = urllib.request.Request(t["url"], data=data, method=t.get("method", "GET"),
                                      headers={"User-Agent": "mahansco-uptime/2.0", "Content-Type": "application/json"})
         try:
-            response = urllib.request.build_opener(PublicRedirect(t)).open(req, timeout=SETTINGS["timeout_seconds"])
+            response = urllib.request.build_opener(redirect_handler).open(req, timeout=SETTINGS["timeout_seconds"])
         except urllib.error.HTTPError as error:
             response = error  # HTTP errors are still readable responses; reads may also time out.
         with response as resp:
-            body = resp.read(2_000_000).decode("utf-8", "ignore")
+            body_bytes = resp.read(2_000_000)
+            body = body_bytes.decode("utf-8", "ignore")
             status = resp.getcode()
             final_url = resp.geturl()
     except Exception as e:  # noqa: BLE001
-        return False, f"Request failed: {type(e).__name__}", None, None, dns_ms, dns_warning, None
+        return False, f"Request failed: {type(e).__name__}", None, None, dns_ms, dns_warning, None, None, None
     latency_ms = int((time.monotonic() - start) * 1000)
+    evidence = (redirect_handler.count, len(body_bytes), final_url)
 
     if status != t["expect_status"]:
-        return False, f"HTTP {status} (expected {t['expect_status']})", latency_ms, status, dns_ms, dns_warning, final_url
+        return False, f"HTTP {status} (expected {t['expect_status']})", latency_ms, status, dns_ms, dns_warning, *evidence
     if not semantic_match(body, t):
-        return False, "Response failed semantic assertion", latency_ms, status, dns_ms, dns_warning, final_url
+        return False, "Response failed semantic assertion", latency_ms, status, dns_ms, dns_warning, *evidence
     if latency_ms > SETTINGS["latency_warn_ms"]:
-        return True, f"OK but slow {latency_ms}ms", latency_ms, status, dns_ms, dns_warning, final_url
-    return True, f"OK {latency_ms}ms", latency_ms, status, dns_ms, dns_warning, final_url
+        return True, f"OK but slow {latency_ms}ms", latency_ms, status, dns_ms, dns_warning, *evidence
+    return True, f"OK {latency_ms}ms", latency_ms, status, dns_ms, dns_warning, *evidence
 
 
 def probe_target(t):
@@ -485,11 +491,20 @@ def retain_history(history, now):
             for ts, results in sorted(grouped.items(), key=lambda item: parse_timestamp(item[0]))] + kept
 
 
+def measurement_id(target):
+    """Public-safe fingerprint for detecting probe-definition changes."""
+    fields = {key: target.get(key) for key in ("url", "method", "expect_status", "must_contain",
+              "json_body", "json_equals", "allow_cross_host_redirects")}
+    return hashlib.sha256(json.dumps(fields, sort_keys=True, separators=(",", ":")).encode()).hexdigest()[:12]
+
+
 def public_config():
     return {"schema_version": 2, "settings": SETTINGS,
+            "latency_measurement": "HTTP request start through full response body; separate DNS preflight excluded",
             "targets": [{"name": t["name"],
                          "hostname": urllib.parse.urlsplit(t["url"]).hostname,
-                         "check_kind": t.get("check_mode", "semantic")}
+                         "check_kind": t.get("check_mode", "semantic"),
+                         "measurement_id": measurement_id(t)}
                         for t in TARGETS["targets"]]}
 
 
@@ -535,7 +550,8 @@ def main():
 
     for t, (probe, ci, cert_error) in zip(targets, probes):
         name = t["name"]
-        ok, detail, latency, status_code, dns_ms, dns_warning, _final_url = probe
+        probe_measurement_id = measurement_id(t)
+        ok, detail, latency, status_code, dns_ms, dns_warning, redirects, response_bytes, _final_url = probe
         prev = state.get(name, {"up": True, "fail_streak": 0})
 
         # 2-strikes debounce: absorb a single flaky probe from GitHub's network.
@@ -566,6 +582,8 @@ def main():
                      "last_detail": detail, "last_check": now,
                      "last_check_utc": nowdt.isoformat(),
                      "latency_ms": latency, "status_code": status_code, "dns_ms": dns_ms,
+                     "redirect_count": redirects, "response_bytes": response_bytes,
+                     "measurement_id": probe_measurement_id,
                      "dns_warning": dns_warning, "dns_mismatch": dns_mismatch}
         if is_down:
             new_state["incident_started_utc"] = prev.get("incident_started_utc", nowdt.isoformat())
@@ -607,6 +625,8 @@ def main():
         sample["results"][name] = {"ok": ok, "confirmed_up": confirmed_up,
                                    "detail": detail, "latency_ms": latency,
                                    "status_code": status_code, "dns_ms": dns_ms,
+                                   "redirect_count": redirects, "response_bytes": response_bytes,
+                                   "measurement_id": probe_measurement_id,
                                    "dns_warning": dns_warning}
         if is_down:
             sample["results"][name]["incident_started_utc"] = new_state["incident_started_utc"]
