@@ -89,7 +89,7 @@ class MonitorTests(unittest.TestCase):
                 "expect_status": 200,
                 "check_cert": False,
             }
-            fake_result = (True, "OK 12ms", 12, 200, 3, "DNS addresses differ from the configured address set", "https://example.com/")
+            fake_result = (True, "OK 12ms", 12, 200, 3, "DNS addresses differ from the configured address set", 1, 42, "https://example.com/")
             with mock.patch.object(monitor, "STATE_PATH", str(state_path)), \
                     mock.patch.object(monitor, "HISTORY_PATH", str(history_path)), \
                     mock.patch.object(monitor, "ROLLUP_PATH", str(rollup_path)), \
@@ -104,6 +104,9 @@ class MonitorTests(unittest.TestCase):
             self.assertTrue(state["Example"]["up"])
             self.assertTrue(state["Example"]["dns_mismatch"])
             self.assertTrue(history[-1]["results"]["Example"]["confirmed_up"])
+            self.assertEqual(history[-1]["results"]["Example"]["redirect_count"], 1)
+            self.assertEqual(history[-1]["results"]["Example"]["response_bytes"], 42)
+            self.assertEqual(len(history[-1]["results"]["Example"]["measurement_id"]), 12)
 
 
 if __name__ == "__main__":

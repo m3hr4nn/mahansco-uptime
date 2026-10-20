@@ -95,6 +95,7 @@ class ProbeTests(unittest.TestCase):
         result = self.check_with()
         self.assertTrue(result[0])
         self.assertEqual(result[-1], self.target["url"])
+        self.assertEqual(result[6:8], (0, len('{"status":"healthy"}')))
 
     def test_graphql_auth_boundary(self):
         target = monitor.TARGETS["targets"][3]
@@ -168,7 +169,7 @@ class CycleTests(unittest.TestCase):
         self.stack.enter_context(patch.object(monitor, "utcnow", side_effect=lambda: self.now))
 
     def cycle(self, ok, cert=None, error=None):
-        self.probe.return_value = ((ok, "safe detail", 1, 200 if ok else 503, 1, None, "https://example.com/"), cert, error)
+        self.probe.return_value = ((ok, "safe detail", 1, 200 if ok else 503, 1, None, 0, 10, "https://example.com/"), cert, error)
         monitor.main()
         self.now += dt.timedelta(minutes=5)
         return monitor.load_json(self.paths["STATE_PATH"], {})
@@ -232,7 +233,7 @@ class PersistenceAndNotificationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             monitor.configure_runtime(url="https://example.com/", data_dir=folder)
             self.assertFalse(monitor.NOTIFICATIONS_ENABLED)
-            probe = ((True, "OK 12ms", 12, 200, 2, None, "https://example.com/"),
+            probe = ((True, "OK 12ms", 12, 200, 2, None, 0, 10, "https://example.com/"),
                      {"days_left": 90, "not_after": "2026-12-18", "not_before": "2026-09-18", "issuer": "Example CA"}, None)
             times = iter([dt.datetime(2026, 9, 19, 12, 0, tzinfo=dt.timezone.utc),
                           dt.datetime(2026, 9, 19, 12, 0, tzinfo=dt.timezone.utc),

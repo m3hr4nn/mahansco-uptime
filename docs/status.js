@@ -208,6 +208,18 @@ function statusEvidence(current) {
   }
   return current.detail || (current.status_code != null ? `HTTP ${current.status_code}` : "Request did not complete.");
 }
+function weeklyHtml(weekly) {
+  const report = weekly?.latest;
+  if (!report || report.schema_version !== 1) return null;
+  const availability = Number.isFinite(report.availability_percent) ? `${report.availability_percent.toFixed(2)}%` : "Insufficient data";
+  const latency = Number.isFinite(report.median_ms) ? `${Math.round(report.median_ms)} / ${Math.round(report.p95_ms)} ms` : "Unavailable";
+  return {window: `${fmtLocal(report.window_start_utc)} – ${fmtLocal(report.window_end_utc)}`, health: report.health,
+    metrics: `<div><span>Availability</span><strong>${availability}</strong><small>${Number(report.coverage_percent).toFixed(0)}% coverage</small></div>
+      <div><span>HTTP median / p95</span><strong>${latency}</strong><small>${esc(report.latency_samples)} valid samples</small></div>
+      <div><span>Incidents</span><strong>${esc(report.incident_count)}</strong><small>${duration(report.longest_incident_seconds * 1000)} longest</small></div>
+      <div><span>Missing slots</span><strong>${esc(report.missing_slots)}</strong><small>${esc(report.observed_slots)}/${esc(report.expected_slots)} observed</small></div>`,
+    observations: (report.observations || []).map(value => `<li>${esc(value)}</li>`).join("")};
+}
 function incidentHtml(incident, detailed = false) {
   const info = serviceInfo(incident.name);
   const status = incident.removed ? "Retired service" : incident.ongoing ? "Unresolved at latest observation" : "Recovered";
@@ -235,7 +247,7 @@ function serviceCard(item, history, state, settings, now, index) {
     </div>
     <div class="service-data">
       <div><span>HTTP</span><strong>${current?.status_code ?? "—"}</strong></div>
-      <div><span>Response</span><strong>${Number.isFinite(current?.latency_ms) ? `${current.latency_ms} ms` : "—"}</strong></div>
+      <div><span>HTTP total</span><strong>${Number.isFinite(current?.latency_ms) ? `${current.latency_ms} ms` : "—"}</strong></div>
       <div><span>Last check</span><strong>${esc(age(now - +parseTs(st.last_check_utc || st.last_check || "")))}</strong></div>
       <div><span>TLS certificate</span>${cert}</div>
       <div><span>Observed availability</span><strong>${avail.percent === null ? "Insufficient data" : `${avail.percent.toFixed(2)}%`}</strong><small>${(avail.coverage * 100).toFixed(0)}% coverage</small></div>
@@ -249,6 +261,7 @@ function serviceCard(item, history, state, settings, now, index) {
       <div class="detail-grid">
         <div class="evidence"><span class="detail-label">Latest evidence</span><strong>${esc(statusEvidence(current))}</strong>
           <p>Observed ${esc(fmtLocal(st.last_check_utc || st.last_check))}</p>
+          <p>DNS preflight ${Number.isFinite(current?.dns_ms) ? `${current.dns_ms} ms` : "unavailable"} · redirects ${Number.isFinite(current?.redirect_count) ? current.redirect_count : "not recorded"} · body ${Number.isFinite(current?.response_bytes) ? `${current.response_bytes} bytes` : "not recorded"}</p>
           ${current?.dns_warning ? `<p class="warning-copy">${esc(current.dns_warning)}</p>` : ""}
           ${st.cert_failure_streak ? '<p class="warning-copy">TLS inspection is unavailable; certificate data may be old.</p>' : ""}
         </div>
@@ -256,7 +269,7 @@ function serviceCard(item, history, state, settings, now, index) {
       </div>
       <div class="availability-grid">${[[DAY, "24 hours"], [7 * DAY, "7 days"], [30 * DAY, "30 days"]]
         .map(([span, label]) => availabilityHtml(availability(history, item.name, span, settings, now), label)).join("")}</div>
-      <p class="detail-note">${esc(item.name)} · ${esc(item.description)}. This check proves only the configured public reachability and semantic assertion.</p>
+      <p class="detail-note">HTTP total runs from request start through the full response body; the separately measured DNS preflight is excluded. Historical connect, TLS and TTFB phases were not collected.</p>
     </details>
   </article>`;
 }
@@ -282,7 +295,7 @@ function showUnavailable(message = "We couldn’t load the latest checks. Trying
   setHtml("incident-history", '<p>Monitoring data is unavailable.</p>');
   setHtml("gaps", '<p>Monitoring data is unavailable.</p>');
 }
-function render(history, state, now = Date.now()) {
+function render(history, state, now = Date.now(), weekly = null) {
   const meta = state?._meta, config = meta?.config, settings = config?.settings;
   if (!Array.isArray(history) || !history.length || !settings || !Array.isArray(config.targets) || !config.targets.length ||
       !config.targets.every(t => t && typeof t.name === "string") ||
@@ -357,7 +370,12 @@ function render(history, state, now = Date.now()) {
   setHtml("attention-list", warnings.length ? warnings.map(item => item.html).join("") :
     '<div class="quiet-state"><span aria-hidden="true">✓</span><div><strong>No active incidents or warnings</strong><p>The latest recorded cycle has no actionable findings.</p></div></div>');
 
-  UI.model = {history, state, settings, now, items};
+  const weeklyView = weeklyHtml(weekly);
+  setText("weekly-window", weeklyView?.window || "First report pending");
+  setText("weekly-health", weeklyView?.health || "Pending");
+  setHtml("weekly-metrics", weeklyView?.metrics || '<p class="muted">No weekly report has been delivered yet.</p>');
+  setHtml("weekly-observations", weeklyView?.observations || "");
+  UI.model = {history, state, settings, now, items, weekly};
   setHtml("targets", items.map((item, index) => serviceCard(item, history, state, settings, now, index)
     .replace("<article class=", `<article data-name="${esc(item.name)}" class=`)).join(""));
   applyServiceFilters();
@@ -388,7 +406,7 @@ function render(history, state, now = Date.now()) {
 }
 function rerenderRange(days) {
   UI.rangeDays = days;
-  if (UI.model) render(UI.model.history, UI.model.state, UI.model.now);
+  if (UI.model) render(UI.model.history, UI.model.state, UI.model.now, UI.model.weekly);
 }
 function resetFilters() {
   UI.query = "";
@@ -438,11 +456,13 @@ async function loadPage() {
       if (!response.ok) throw new Error("unavailable");
       return response.json();
     }));
-    render(...data);
+    const weekly = await fetch(`weekly_report.json?_=${Date.now()}`, {cache: "no-store", signal: AbortSignal.timeout(15000)})
+      .then(response => response.ok ? response.json() : null).catch(() => null);
+    render(data[0], data[1], Date.now(), weekly);
     const interval = data[1]?._meta?.config?.settings?.refresh_seconds;
     if (Number.isFinite(interval) && interval > 0) refreshSeconds = interval;
     clearInterval(globalThis.statusClock);
-    globalThis.statusClock = setInterval(() => render(...data), Math.min(refreshSeconds, 10) * 1000);
+    globalThis.statusClock = setInterval(() => render(data[0], data[1], Date.now(), weekly), Math.min(refreshSeconds, 10) * 1000);
   } catch (_) {
     clearInterval(globalThis.statusClock);
     showUnavailable();
@@ -451,7 +471,7 @@ async function loadPage() {
   }
 }
 if (typeof module !== "undefined") module.exports = {esc, parseTs, freshness, availability, incidentsFor,
-  gapsFor, render, hourlyHealth, historyBuckets, tileStatus, filterServices, showUnavailable, loadPage};
+  gapsFor, render, hourlyHealth, historyBuckets, tileStatus, filterServices, weeklyHtml, showUnavailable, loadPage};
 else {
   initializeUi();
   loadPage();

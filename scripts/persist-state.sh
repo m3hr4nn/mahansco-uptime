@@ -3,7 +3,9 @@ set -euo pipefail
 
 git config user.name uptime-bot
 git config user.email uptime-bot@users.noreply.github.com
-git add -- docs/state.json docs/history.json docs/uptime_daily.json
+files=(docs/state.json docs/history.json docs/uptime_daily.json)
+[[ -e docs/weekly_report.json ]] && files+=(docs/weekly_report.json)
+git add -- "${files[@]}"
 if git diff --cached --quiet; then exit 0; fi
 git commit -m "chore: update monitor state [skip ci]"
 branch="${GITHUB_REF_NAME:?Expected workflow branch}"

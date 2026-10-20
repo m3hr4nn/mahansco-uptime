@@ -9,6 +9,7 @@ are no paid monitoring dependencies.
 ## Main files
 
 - `monitor.py` — monitoring and alerting logic
+- `weekly_report.py` — seven-day analysis, Telegram delivery and report-window tracking
 - `targets.json` — monitoring configuration
 - `.github/workflows/monitor.yml` — scheduled execution
 - `docs/index.html`, `docs/status.css`, `docs/status.js` — accessible public status page and calculations
@@ -27,7 +28,7 @@ heartbeat. No public Git history is rewritten.
 ```sh
 python3 monitor.py --validate
 python3 -m unittest discover -s tests
-PYTHONPYCACHEPREFIX=/tmp/mahansco-uptime-pycache python3 -m py_compile monitor.py
+PYTHONPYCACHEPREFIX=/tmp/mahansco-uptime-pycache python3 -m py_compile monitor.py weekly_report.py
 node --test tests/status.test.js
 actionlint .github/workflows/monitor.yml
 bash -n scripts/persist-state.sh
@@ -107,7 +108,8 @@ access is denied; it does not test authenticated resolver health.
 Cross-host redirects default to denied and can be explicitly enabled per target.
 HTTPS, public destination checks and semantic assertions still apply; POST redirects
 are rejected to avoid silently converting the query to GET. Successful final URLs
-are recorded. Configuration forbids credentials, URL queries/fragments, internal
+are checked but not published; redirect count and bounded response bytes are recorded.
+Configuration forbids credentials, URL queries/fragments, internal
 hosts, arbitrary POST bodies, unsupported keys and malformed thresholds.
 
 One failed observation creates a pending failure. Two consecutive failures confirm
@@ -136,6 +138,47 @@ per flush; two flushes run per cycle. A digest is sent when due, and its clock
 advances only on successful delivery. A manual test ping exits unsuccessfully if
 delivery fails. Network ambiguity or a crash before persistence can still cause a
 duplicate delivery; Telegram and Git do not provide a shared transaction.
+
+## Wednesday weekly report
+
+The same Actions workflow sends an independent weekly analysis each Wednesday at
+09:00 Asia/Tehran (`30 5 * * 3` UTC). Iran has used fixed UTC+03:30 since 2022.
+GitHub schedules are best effort, so 09:00 is the requested boundary, not a delivery
+SLA; a delayed run still analyzes the seven complete days ending at that boundary.
+The next report window is compared with the preceding equivalent window only when
+both meet the configured coverage threshold.
+
+The report uses raw observations, not daily rollups. Availability is successful
+observed endpoint-slots divided by observed endpoint-slots; it is suppressed below
+90% coverage. Missing slots are monitoring gaps, never downtime. Median and
+nearest-rank p95 use individual valid `latency_ms` observations; failed semantic
+checks with a completed HTTP response remain valid latency samples. `latency_ms`
+measures from HTTP request start through the full bounded response body. The separate
+DNS preflight is excluded; historical connect, TLS, TTFB, redirect and response-size
+phases were not collected. Each new sample has a public-safe probe-definition fingerprint;
+mixed definitions suppress availability and comparison instead of silently combining
+incompatible checks. Confirmed endpoint downtime is the sum of confirmed
+incident spans, clipped to the report window; overlapping endpoints are not deduplicated.
+
+`docs/weekly_report.json` records the last successfully accepted report boundary and
+feeds the dashboard summary. Workflow concurrency plus that boundary prevents normal
+duplicate sends. A crash or rejected Git push after Telegram accepts a message can
+still produce a duplicate on retry because Telegram and Git have no shared transaction.
+The 35-day raw retention covers the current and previous seven-day windows.
+
+Preview locally without credentials or writes:
+
+```sh
+python3 weekly_report.py
+python3 weekly_report.py --at 2026-10-21T09:00:00+03:30
+```
+
+The workflow-dispatch `weekly_report` choice provides `preview`, one clearly labeled
+`test`, normal `send`, and controlled `resend` modes. `test` does not advance the
+delivery boundary. `resend` deliberately bypasses duplicate prevention and should be
+used only after reviewing the preview. Normal `send` and scheduled delivery advance
+the boundary only after the Telegram API returns `ok: true`; transport failures receive
+the existing three bounded retries and fail the workflow without advancing it.
 
 ## Scheduling, publication and recovery
 

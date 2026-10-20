@@ -3,6 +3,7 @@ name: Uptime Monitor
 on:
   schedule:
     - cron: "17 */4 * * *"  # about every four hours; GitHub may delay or drop scheduled runs
+    - cron: "30 5 * * 3"    # Wednesday 09:00 Asia/Tehran (Iran is fixed UTC+03:30)
   workflow_dispatch:          # manual "Run workflow" button
     inputs:
       test_ping:
@@ -13,6 +14,11 @@ on:
         description: "Send the current-state digest to Telegram now (heartbeat on demand)"
         type: boolean
         default: false
+      weekly_report:
+        description: "Weekly report action (preview/test do not advance the delivery window)"
+        type: choice
+        options: [none, preview, test, send, resend]
+        default: none
 
 permissions:
   contents: read
@@ -23,6 +29,7 @@ concurrency:
 
 jobs:
   monitor:
+    if: ${{ (github.event_name != 'schedule' || github.event.schedule != '30 5 * * 3') && (github.event_name != 'workflow_dispatch' || inputs.weekly_report == 'none') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -46,9 +53,9 @@ jobs:
       - name: Run monitor
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID:   ${{ secrets.TELEGRAM_CHAT_ID }}
-          TEST_PING:          ${{ inputs.test_ping }}
-          FORCE_DIGEST:       ${{ inputs.send_digest }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TEST_PING: ${{ inputs.test_ping }}
+          FORCE_DIGEST: ${{ inputs.send_digest }}
         run: python monitor.py
 
       - name: Persist state
@@ -63,4 +70,51 @@ jobs:
             docs/state.json
             docs/history.json
             docs/uptime_daily.json
+          retention-days: 7
+
+  weekly-report:
+    if: ${{ github.event.schedule == '30 5 * * 3' || (github.event_name == 'workflow_dispatch' && inputs.weekly_report != 'none') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Validate and preview weekly report
+        run: |
+          python monitor.py --validate
+          python -m unittest discover -s tests -p 'test_weekly_report.py'
+          python weekly_report.py
+
+      - name: Deliver weekly report
+        if: ${{ github.event.schedule == '30 5 * * 3' || inputs.weekly_report == 'test' || inputs.weekly_report == 'send' || inputs.weekly_report == 'resend' }}
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          REPORT_MODE: ${{ github.event.schedule == '30 5 * * 3' && 'send' || inputs.weekly_report }}
+        run: |
+          case "$REPORT_MODE" in
+            test) python weekly_report.py --test-send ;;
+            resend) python weekly_report.py --send --resend ;;
+            *) python weekly_report.py --send ;;
+          esac
+
+      - name: Persist weekly report window
+        if: ${{ github.event.schedule == '30 5 * * 3' || inputs.weekly_report == 'send' || inputs.weekly_report == 'resend' }}
+        run: bash scripts/persist-state.sh
+
+      - name: Preserve weekly state if publication failed
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: weekly-report-recovery-${{ github.run_id }}
+          path: docs/weekly_report.json
           retention-days: 7
