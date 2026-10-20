@@ -108,3 +108,27 @@ the message but before the new boundary is committed; retrying may duplicate tha
 
 No force-push, tag replacement, secret rotation, DNS change, Tier 1 change, or unrelated
 refactor is part of this release.
+
+## Validation and release record
+
+- Implementation commit: `873b6b2084883b3d5221e65f087b6ab5e4a1a543`.
+- Release PR: #3, merged normally as `026439bd8ddb597448afd859b2e87d139904bc52`
+  at 2026-10-20 08:00 UTC; no protection, review, or status-check gate was configured.
+- Automated checks: configuration validation; 41 Python tests covering time boundaries,
+  missing data, metrics, incompatible definitions, duplicate prevention, retries and
+  formatting; browser tests; Python byte-compilation; Bash syntax; whitespace checks.
+- Live read-only landing verification: assertion passed, HTTP 200, 298 ms HTTP total,
+  491 ms DNS preflight, zero redirects, 25,869 response bytes. This local observation
+  is not presented as GitHub-runner history.
+- Dashboard validation: desktop and 390 px mobile headless renders passed. GitHub Pages
+  build `1299214902` deployed merge `026439b`; the public page and weekly JSON returned
+  HTTP 200.
+- Telegram test: workflow run `39390322826` sent exactly one message labeled
+  `TEST — Weekly operations report`; the Telegram API returned `ok: true`. This verifies
+  API acceptance, not human receipt. Test mode did not advance the report boundary.
+- First scheduled production report: Wednesday 2026-10-21 09:00 Asia/Tehran
+  (05:30 UTC), subject to GitHub Actions scheduling delay or omission.
+- The first ordinary post-release probe was nominally due at 2026-10-20 08:17 UTC
+  but had not started by 08:22 UTC. This is recorded as scheduler delay, not service
+  downtime. Offline transition tests passed; live landing recovery remains pending
+  that ordinary cycle and should produce the existing single recovery notification.
