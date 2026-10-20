@@ -220,6 +220,13 @@ function weeklyHtml(weekly) {
       <div><span>Missing slots</span><strong>${esc(report.missing_slots)}</strong><small>${esc(report.observed_slots)}/${esc(report.expected_slots)} observed</small></div>`,
     observations: (report.observations || []).map(value => `<li>${esc(value)}</li>`).join("")};
 }
+function renderWeekly(weekly) {
+  const view = weeklyHtml(weekly);
+  setText("weekly-window", view?.window || "First report pending");
+  setText("weekly-health", view?.health || "Pending");
+  setHtml("weekly-metrics", view?.metrics || '<p class="muted">No weekly report has been delivered yet.</p>');
+  setHtml("weekly-observations", view?.observations || "");
+}
 function incidentHtml(incident, detailed = false) {
   const info = serviceInfo(incident.name);
   const status = incident.removed ? "Retired service" : incident.ongoing ? "Unresolved at latest observation" : "Recovered";
@@ -370,11 +377,7 @@ function render(history, state, now = Date.now(), weekly = null) {
   setHtml("attention-list", warnings.length ? warnings.map(item => item.html).join("") :
     '<div class="quiet-state"><span aria-hidden="true">✓</span><div><strong>No active incidents or warnings</strong><p>The latest recorded cycle has no actionable findings.</p></div></div>');
 
-  const weeklyView = weeklyHtml(weekly);
-  setText("weekly-window", weeklyView?.window || "First report pending");
-  setText("weekly-health", weeklyView?.health || "Pending");
-  setHtml("weekly-metrics", weeklyView?.metrics || '<p class="muted">No weekly report has been delivered yet.</p>');
-  setHtml("weekly-observations", weeklyView?.observations || "");
+  renderWeekly(weekly);
   UI.model = {history, state, settings, now, items, weekly};
   setHtml("targets", items.map((item, index) => serviceCard(item, history, state, settings, now, index)
     .replace("<article class=", `<article data-name="${esc(item.name)}" class=`)).join(""));
@@ -456,13 +459,18 @@ async function loadPage() {
       if (!response.ok) throw new Error("unavailable");
       return response.json();
     }));
-    const weekly = await fetch(`weekly_report.json?_=${Date.now()}`, {cache: "no-store", signal: AbortSignal.timeout(15000)})
-      .then(response => response.ok ? response.json() : null).catch(() => null);
-    render(data[0], data[1], Date.now(), weekly);
+    render(data[0], data[1]);
+    fetch(`weekly_report.json?_=${Date.now()}`, {cache: "no-store", signal: AbortSignal.timeout(15000)})
+      .then(response => response.ok ? response.json() : null).then(weekly => {
+        if (weekly) {
+          renderWeekly(weekly);
+          if (UI.model) UI.model.weekly = weekly;
+        }
+      }).catch(() => {});
     const interval = data[1]?._meta?.config?.settings?.refresh_seconds;
     if (Number.isFinite(interval) && interval > 0) refreshSeconds = interval;
     clearInterval(globalThis.statusClock);
-    globalThis.statusClock = setInterval(() => render(data[0], data[1], Date.now(), weekly), Math.min(refreshSeconds, 10) * 1000);
+    globalThis.statusClock = setInterval(() => render(data[0], data[1], Date.now(), UI.model?.weekly), Math.min(refreshSeconds, 10) * 1000);
   } catch (_) {
     clearInterval(globalThis.statusClock);
     showUnavailable();
