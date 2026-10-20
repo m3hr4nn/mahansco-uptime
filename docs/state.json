@@ -1,16 +1,18 @@
 {
   "Landing (mahansco.ir)": {
-    "up": false,
-    "fail_streak": 15,
-    "last_detail": "Response failed semantic assertion",
-    "last_check": "2026-10-20 08:18 UTC+03:30",
-    "last_check_utc": "2026-10-20T04:48:59.464135+00:00",
-    "latency_ms": 929,
+    "up": true,
+    "fail_streak": 0,
+    "last_detail": "OK 742ms",
+    "last_check": "2026-10-20 17:03 UTC+03:30",
+    "last_check_utc": "2026-10-20T13:33:06.428472+00:00",
+    "latency_ms": 742,
     "status_code": 200,
-    "dns_ms": 179,
+    "dns_ms": 300,
+    "redirect_count": 0,
+    "response_bytes": 25869,
+    "measurement_id": "3edcb2297923",
     "dns_warning": null,
     "dns_mismatch": false,
-    "incident_started_utc": "2026-10-16T22:50:45.275358+00:00",
     "cert_days_left": 63,
     "cert_not_after": "2026-12-23",
     "cert_not_before": "2026-09-24",
@@ -19,18 +21,21 @@
     "cert_warned_7": false,
     "cert_warned_1": false,
     "cert_failure_streak": 0,
-    "cert_inspected_utc": "2026-10-20T04:48:59.464135+00:00",
+    "cert_inspected_utc": "2026-10-20T13:33:06.428472+00:00",
     "cert_warned_9": false
   },
   "App SPA (app.mahansco.ir)": {
     "up": true,
     "fail_streak": 0,
-    "last_detail": "OK 728ms",
-    "last_check": "2026-10-20 08:18 UTC+03:30",
-    "last_check_utc": "2026-10-20T04:48:59.464135+00:00",
-    "latency_ms": 728,
+    "last_detail": "OK 634ms",
+    "last_check": "2026-10-20 17:03 UTC+03:30",
+    "last_check_utc": "2026-10-20T13:33:06.428472+00:00",
+    "latency_ms": 634,
     "status_code": 200,
-    "dns_ms": 267,
+    "dns_ms": 2245,
+    "redirect_count": 0,
+    "response_bytes": 761,
+    "measurement_id": "27ebee815df4",
     "dns_warning": null,
     "dns_mismatch": false,
     "cert_days_left": 63,
@@ -41,22 +46,25 @@
     "cert_warned_7": false,
     "cert_warned_1": false,
     "cert_failure_streak": 0,
-    "cert_inspected_utc": "2026-10-20T04:48:59.464135+00:00",
+    "cert_inspected_utc": "2026-10-20T13:33:06.428472+00:00",
     "cert_warned_9": false
   },
   "App health API": {
     "up": true,
     "fail_streak": 0,
-    "last_detail": "OK 620ms",
-    "last_check": "2026-10-20 08:18 UTC+03:30",
-    "last_check_utc": "2026-10-20T04:48:59.464135+00:00",
-    "latency_ms": 620,
+    "last_detail": "OK 839ms",
+    "last_check": "2026-10-20 17:03 UTC+03:30",
+    "last_check_utc": "2026-10-20T13:33:06.428472+00:00",
+    "latency_ms": 839,
     "status_code": 200,
-    "dns_ms": 346,
+    "dns_ms": 406,
+    "redirect_count": 0,
+    "response_bytes": 21,
+    "measurement_id": "5d1e132a72fe",
     "dns_warning": null,
     "dns_mismatch": false,
     "cert_failure_streak": 0,
-    "cert_inspected_utc": "2026-10-20T04:48:59.464135+00:00",
+    "cert_inspected_utc": "2026-10-20T13:33:06.428472+00:00",
     "cert_days_left": 63,
     "cert_not_after": "2026-12-23",
     "cert_not_before": "2026-09-24",
@@ -69,31 +77,37 @@
   "Marketing API": {
     "up": true,
     "fail_streak": 0,
-    "last_detail": "OK 1498ms",
-    "last_check": "2026-10-20 08:18 UTC+03:30",
-    "last_check_utc": "2026-10-20T04:48:59.464135+00:00",
-    "latency_ms": 1498,
+    "last_detail": "OK 1214ms",
+    "last_check": "2026-10-20 17:03 UTC+03:30",
+    "last_check_utc": "2026-10-20T13:33:06.428472+00:00",
+    "latency_ms": 1214,
     "status_code": 200,
-    "dns_ms": 178,
+    "dns_ms": 298,
+    "redirect_count": 0,
+    "response_bytes": 199473,
+    "measurement_id": "c7fa2419ede0",
     "dns_warning": null,
     "dns_mismatch": false
   },
   "robots.txt canary": {
     "up": true,
     "fail_streak": 0,
-    "last_detail": "OK 768ms",
-    "last_check": "2026-10-20 08:18 UTC+03:30",
-    "last_check_utc": "2026-10-20T04:48:59.464135+00:00",
-    "latency_ms": 768,
+    "last_detail": "OK 562ms",
+    "last_check": "2026-10-20 17:03 UTC+03:30",
+    "last_check_utc": "2026-10-20T13:33:06.428472+00:00",
+    "latency_ms": 562,
     "status_code": 200,
-    "dns_ms": 176,
+    "dns_ms": 297,
+    "redirect_count": 0,
+    "response_bytes": 151,
+    "measurement_id": "604085890c39",
     "dns_warning": null,
     "dns_mismatch": false
   },
   "_meta": {
-    "last_digest_utc": "2026-10-20T04:48:59.464135+00:00",
+    "last_digest_utc": "2026-10-20T13:33:06.428472+00:00",
     "pending_notifications": [],
-    "last_run_utc": "2026-10-20T04:49:01.495290+00:00",
+    "last_run_utc": "2026-10-20T13:33:10.709675+00:00",
     "config": {
       "schema_version": 2,
       "settings": {
@@ -117,52 +131,62 @@
         "notification_max_age_hours": 48,
         "cert_failure_threshold": 3
       },
+      "latency_measurement": "HTTP request start through full response body; separate DNS preflight excluded",
       "targets": [
         {
           "name": "Landing (mahansco.ir)",
           "hostname": "mahansco.ir",
-          "check_kind": "semantic"
+          "check_kind": "semantic",
+          "measurement_id": "3edcb2297923"
         },
         {
           "name": "App SPA (app.mahansco.ir)",
           "hostname": "app.mahansco.ir",
-          "check_kind": "semantic"
+          "check_kind": "semantic",
+          "measurement_id": "27ebee815df4"
         },
         {
           "name": "App health API",
           "hostname": "api.mahansco.ir",
-          "check_kind": "semantic"
+          "check_kind": "semantic",
+          "measurement_id": "5d1e132a72fe"
         },
         {
           "name": "Application access check",
           "hostname": "api.mahansco.ir",
-          "check_kind": "semantic"
+          "check_kind": "semantic",
+          "measurement_id": "328f5c26c1ec"
         },
         {
           "name": "Marketing API",
           "hostname": "mahansco.ir",
-          "check_kind": "semantic"
+          "check_kind": "semantic",
+          "measurement_id": "c7fa2419ede0"
         },
         {
           "name": "robots.txt canary",
           "hostname": "mahansco.ir",
-          "check_kind": "semantic"
+          "check_kind": "semantic",
+          "measurement_id": "604085890c39"
         }
       ]
     },
-    "run_id": "39371554611",
-    "commit": "c97be4ed8963587dc51ddcd6898678cb948b3da5",
-    "latest_observation_utc": "2026-10-20T04:48:59.464135+00:00"
+    "run_id": "39431343119",
+    "commit": "0dc209a4765140bcb340b309ce1d279c44b829fd",
+    "latest_observation_utc": "2026-10-20T13:33:06.428472+00:00"
   },
   "Application access check": {
     "up": true,
     "fail_streak": 0,
-    "last_detail": "OK 618ms",
-    "last_check": "2026-10-20 08:18 UTC+03:30",
-    "last_check_utc": "2026-10-20T04:48:59.464135+00:00",
-    "latency_ms": 618,
+    "last_detail": "OK 849ms",
+    "last_check": "2026-10-20 17:03 UTC+03:30",
+    "last_check_utc": "2026-10-20T13:33:06.428472+00:00",
+    "latency_ms": 849,
     "status_code": 200,
-    "dns_ms": 345,
+    "dns_ms": 406,
+    "redirect_count": 0,
+    "response_bytes": 161,
+    "measurement_id": "328f5c26c1ec",
     "dns_warning": null,
     "dns_mismatch": false
   }
