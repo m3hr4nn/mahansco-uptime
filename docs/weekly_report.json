@@ -1,115 +1,116 @@
 {
   "schema_version": 1,
-  "last_sent_boundary_utc": "2026-11-04T05:30:00+00:00",
+  "last_sent_boundary_utc": "2026-11-11T05:30:00+00:00",
   "latest": {
     "schema_version": 1,
-    "boundary_utc": "2026-11-04T05:30:00+00:00",
+    "boundary_utc": "2026-11-11T05:30:00+00:00",
     "timezone": "Asia/Tehran (UTC+03:30)",
-    "window_start_utc": "2026-10-28T05:30:00+00:00",
-    "window_end_utc": "2026-11-04T05:30:00+00:00",
+    "window_start_utc": "2026-11-04T05:30:00+00:00",
+    "window_end_utc": "2026-11-11T05:30:00+00:00",
     "health": "PARTIAL DATA",
     "availability_percent": null,
-    "coverage_percent": 52.38095238095239,
-    "observed_slots": 132,
+    "coverage_percent": 47.61904761904761,
+    "observed_slots": 120,
     "expected_slots": 252,
-    "missing_slots": 120,
+    "missing_slots": 132,
     "confirmed_downtime_seconds": 0,
     "incident_count": 0,
     "longest_incident_seconds": 0,
     "longest_incident_endpoint": null,
-    "median_ms": 976.0,
-    "p95_ms": 3282,
-    "latency_samples": 132,
+    "median_ms": 1021.0,
+    "p95_ms": 5881,
+    "latency_samples": 120,
     "median_change_percent": null,
     "p95_change_percent": null,
     "comparison_available": false,
-    "latest_observation_utc": "2026-11-04T00:36:19.013430+00:00",
+    "latest_observation_utc": "2026-11-10T21:47:40.623956+00:00",
     "measurement_consistent": true,
-    "freshness_seconds": 17620,
+    "freshness_seconds": 27739,
     "endpoints": {
       "Landing (mahansco.ir)": {
         "failures": 0,
-        "samples": 22,
+        "samples": 20,
         "measurement_ids": [
           "3edcb2297923"
         ],
-        "observed_slots": 22,
-        "missing_slots": 20,
-        "median_ms": 1159.5,
-        "p95_ms": 2399,
-        "latency_samples": 22,
+        "observed_slots": 20,
+        "missing_slots": 22,
+        "median_ms": 1135.5,
+        "p95_ms": 2160,
+        "latency_samples": 20,
         "median_change_percent": null
       },
       "App SPA (app.mahansco.ir)": {
         "failures": 0,
-        "samples": 22,
+        "samples": 20,
         "measurement_ids": [
           "27ebee815df4"
         ],
-        "observed_slots": 22,
-        "missing_slots": 20,
-        "median_ms": 865.5,
-        "p95_ms": 1096,
-        "latency_samples": 22,
+        "observed_slots": 20,
+        "missing_slots": 22,
+        "median_ms": 858.5,
+        "p95_ms": 1263,
+        "latency_samples": 20,
         "median_change_percent": null
       },
       "App health API": {
         "failures": 0,
-        "samples": 22,
+        "samples": 20,
         "measurement_ids": [
           "5d1e132a72fe"
         ],
-        "observed_slots": 22,
-        "missing_slots": 20,
-        "median_ms": 830.5,
-        "p95_ms": 1066,
-        "latency_samples": 22,
+        "observed_slots": 20,
+        "missing_slots": 22,
+        "median_ms": 802.0,
+        "p95_ms": 2003,
+        "latency_samples": 20,
         "median_change_percent": null
       },
       "Application access check": {
         "failures": 0,
-        "samples": 22,
+        "samples": 20,
         "measurement_ids": [
           "328f5c26c1ec"
         ],
-        "observed_slots": 22,
-        "missing_slots": 20,
-        "median_ms": 864.0,
-        "p95_ms": 1708,
-        "latency_samples": 22,
+        "observed_slots": 20,
+        "missing_slots": 22,
+        "median_ms": 923.5,
+        "p95_ms": 5881,
+        "latency_samples": 20,
         "median_change_percent": null
       },
       "Marketing API": {
         "failures": 0,
-        "samples": 22,
+        "samples": 20,
         "measurement_ids": [
           "c7fa2419ede0"
         ],
-        "observed_slots": 22,
-        "missing_slots": 20,
-        "median_ms": 1992.0,
-        "p95_ms": 5686,
-        "latency_samples": 22,
+        "observed_slots": 20,
+        "missing_slots": 22,
+        "median_ms": 1956.0,
+        "p95_ms": 10247,
+        "latency_samples": 20,
         "median_change_percent": null
       },
       "robots.txt canary": {
         "failures": 0,
-        "samples": 22,
+        "samples": 20,
         "measurement_ids": [
           "604085890c39"
         ],
-        "observed_slots": 22,
-        "missing_slots": 20,
-        "median_ms": 946.0,
-        "p95_ms": 4460,
-        "latency_samples": 22,
+        "observed_slots": 20,
+        "missing_slots": 22,
+        "median_ms": 962.5,
+        "p95_ms": 2078,
+        "latency_samples": 20,
         "median_change_percent": null
       }
     },
     "observations": [
-      "Coverage is 52%; treat availability as insufficient, not downtime."
+      "Coverage is 48%; treat availability as insufficient, not downtime.",
+      "The last sample was delayed at the report boundary; verify the Actions schedule."
     ]
   },
-  "last_delivery_utc": "2026-11-04T13:11:22.003819+00:00",
+  "last_delivery_utc": "2026-11-11T12:53:38.023242+00:00",
   "delivery_count": 1
 }
